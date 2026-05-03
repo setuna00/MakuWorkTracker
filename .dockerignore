@@ -1,0 +1,14 @@
+**/node_modules
+**/__pycache__
+**/.venv
+**/dist
+**/build
+**/*.pyc
+**/*.pyo
+**/.DS_Store
+**/.git
+**/.gitignore
+**/.idea
+**/.vscode
+**/data
+backend/app/static

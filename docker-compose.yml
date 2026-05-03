@@ -1,0 +1,13 @@
+services:
+  works-tracker:
+    build: .
+    container_name: works-tracker
+    restart: unless-stopped
+    ports:
+      # 主机 8765 -> 容器 8000，避开常用端口冲突
+      - "8765:8000"
+    volumes:
+      # 在 NAS 上把数据目录挂出来。请按你 QNAP 的实际路径调整
+      - /share/Container/works-tracker/data:/app/data
+    environment:
+      - TZ=Australia/Sydney

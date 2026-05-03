@@ -1,0 +1,192 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+.scrollbar-thin::-webkit-scrollbar { height: 6px; width: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* === 输入控件 === */
+/* filled 风格：浅灰底 + 明显边框，确保与白色卡片背景有清晰对比 */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="search"],
+input[type="url"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #f1f5f9;     /* 浅灰底，与白色卡片明显区分 */
+  border: 1.5px solid #94a3b8;   /* 加深的边框，可清晰看见输入框轮廓 */
+  border-radius: 10px;
+  padding: 0 16px;
+  height: 48px;                  /* 整体加高更舒适 */
+  font-size: 14px;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+textarea {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #f1f5f9;
+  border: 1.5px solid #94a3b8;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 130px;            /* textarea 最低 130px */
+}
+
+input::placeholder, textarea::placeholder {
+  color: #64748b;               /* 加深 placeholder，确保可读 */
+}
+
+input:hover:not(:disabled),
+textarea:hover:not(:disabled),
+select:hover:not(:disabled) {
+  border-color: #475569;
+  background-color: #e2e8f0;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #2563eb;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+/* 错误状态：用于必填校验失败 */
+input.has-error,
+textarea.has-error,
+select.has-error {
+  border-color: #dc2626;
+  background-color: #fef2f2;
+}
+input.has-error:focus,
+textarea.has-error:focus,
+select.has-error:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+}
+
+input:disabled, textarea:disabled, select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 紧凑型输入：顶栏搜索、列表内联编辑、小型 modal 表单等用这个 */
+input.input-compact,
+select.input-compact {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+select.input-compact {
+  padding-right: 32px;
+  background-position: right 10px center;
+}
+
+/* select 自定义箭头 */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 40px;
+  cursor: pointer;
+}
+
+/* 颜色 picker */
+input[type="color"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+/* 文件输入 */
+input[type="file"] {
+  font-size: 13px;
+  padding: 6px;
+  background: #ffffff;
+}
+
+/* range 滑块 */
+input[type="range"] {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+  -webkit-appearance: auto;
+  appearance: auto;
+}
+input[type="range"]:focus {
+  background: transparent;
+  box-shadow: none;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+a:not(.no-style) { color: inherit; }
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
