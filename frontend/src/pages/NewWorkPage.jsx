@@ -230,7 +230,7 @@ export default function NewWorkPage() {
           <div className="px-7 py-4 bg-paper-50 border-t border-paper-200 flex items-center justify-between">
             <Button variant="ghost" onClick={() => setStep(1)}>← 上一步</Button>
             <Button variant="primary"
-                    disabled={!isStep2Valid}
+                    className={!isStep2Valid ? '!bg-paper-100 !text-ink-500 !border-paper-300' : ''}
                     onClick={() => {
                       if (!title.trim()) {
                         setTitleError('请输入作品名称')
