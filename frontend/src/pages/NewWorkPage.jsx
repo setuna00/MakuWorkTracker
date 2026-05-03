@@ -25,6 +25,7 @@ export default function NewWorkPage() {
   const [collectionIds, setCollectionIds] = useState([])
   const [error, setError] = useState('')
   const [titleError, setTitleError] = useState('')
+  const [totalUnitsError, setTotalUnitsError] = useState('')
 
   const { data: typesMeta = { types: [] } } = useQuery({
     queryKey: ['types-meta'],
@@ -35,6 +36,8 @@ export default function NewWorkPage() {
 
   const typeMeta = typesMeta.types.find(t => t.value === type)
   const isMovie = type === 'movie'
+  const needsTotalUnits = !isMovie && releaseStatus === 'finished' && typeMeta?.has_range_progress
+  const isStep2Valid = title.trim() && (!needsTotalUnits || Number(totalUnits) > 0)
 
   const create = useMutation({
     mutationFn: () => api.createWork({
@@ -149,40 +152,40 @@ export default function NewWorkPage() {
           <Section title="基本信息" desc="作品的标题与简介">
             <FormGrid>
               <Field span={12} label="标题" required error={titleError}>
-                <input value={title}
-                       onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError('') }}
-                       autoFocus
-                       placeholder="作品名称"
-                       className={titleError ? 'has-error' : ''} />
+                <TextInput value={title}
+                           onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError('') }}
+                           autoFocus
+                           placeholder="作品名称"
+                           hasError={!!titleError} />
               </Field>
 
               <Field span={12} label="原文标题" hint="可选">
-                <input value={originalTitle} onChange={(e) => setOriginalTitle(e.target.value)}
-                       placeholder="原版语言的标题" />
+                <TextInput value={originalTitle} onChange={(e) => setOriginalTitle(e.target.value)}
+                           placeholder="原版语言的标题" />
               </Field>
 
               {/* 创作者两列等宽 */}
               {typeMeta?.creator_fields?.length === 2 && (
                 <>
                   <Field span={6} label={typeMeta.creator_fields[0].label} hint="可选">
-                    <input value={creators[typeMeta.creator_fields[0].key] || ''}
-                           onChange={(e) => setCreators(c => ({ ...c, [typeMeta.creator_fields[0].key]: e.target.value }))} />
+                    <TextInput value={creators[typeMeta.creator_fields[0].key] || ''}
+                               onChange={(e) => setCreators(c => ({ ...c, [typeMeta.creator_fields[0].key]: e.target.value }))} />
                   </Field>
                   <Field span={6} label={typeMeta.creator_fields[1].label} hint="可选">
-                    <input value={creators[typeMeta.creator_fields[1].key] || ''}
-                           onChange={(e) => setCreators(c => ({ ...c, [typeMeta.creator_fields[1].key]: e.target.value }))} />
+                    <TextInput value={creators[typeMeta.creator_fields[1].key] || ''}
+                               onChange={(e) => setCreators(c => ({ ...c, [typeMeta.creator_fields[1].key]: e.target.value }))} />
                   </Field>
                 </>
               )}
               {typeMeta?.creator_fields?.length === 1 && (
                 <Field span={6} label={typeMeta.creator_fields[0].label} hint="可选">
-                  <input value={creators[typeMeta.creator_fields[0].key] || ''}
-                         onChange={(e) => setCreators(c => ({ ...c, [typeMeta.creator_fields[0].key]: e.target.value }))} />
+                  <TextInput value={creators[typeMeta.creator_fields[0].key] || ''}
+                             onChange={(e) => setCreators(c => ({ ...c, [typeMeta.creator_fields[0].key]: e.target.value }))} />
                 </Field>
               )}
 
               <Field span={12} label="简介" hint="可选">
-                <textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)}
+                <TextArea rows={5} value={description} onChange={(e) => setDescription(e.target.value)}
                           placeholder="简单介绍一下这部作品..." />
               </Field>
             </FormGrid>
@@ -199,17 +202,24 @@ export default function NewWorkPage() {
             <Section title="进度信息" desc="作品状态与总集数">
               <FormGrid>
                 <Field span={6} label="作品状态">
-                  <select value={releaseStatus} onChange={(e) => setReleaseStatus(e.target.value)}>
+                  <SelectInput value={releaseStatus} onChange={(e) => {
+                    setReleaseStatus(e.target.value)
+                    if (e.target.value !== 'finished') setTotalUnitsError('')
+                  }}>
                     <option value="ongoing">连载中</option>
                     <option value="finished">完结</option>
-                  </select>
+                  </SelectInput>
                 </Field>
                 {typeMeta?.has_range_progress && (
                   <Field span={6} label={`总${typeMeta.unit_label}数`}
-                         hint={releaseStatus === 'finished' ? '必填' : '可选'}>
-                    <input type="number" value={totalUnits} min={1}
-                           onChange={(e) => setTotalUnits(e.target.value)}
-                           placeholder="例如 24" />
+                         hint={releaseStatus === 'finished' ? '必填' : '可选'} error={totalUnitsError}>
+                    <TextInput type="number" value={totalUnits} min={1}
+                               onChange={(e) => {
+                                 setTotalUnits(e.target.value)
+                                 if (totalUnitsError) setTotalUnitsError('')
+                               }}
+                               placeholder="例如 24"
+                               hasError={!!totalUnitsError} />
                   </Field>
                 )}
               </FormGrid>
@@ -220,13 +230,18 @@ export default function NewWorkPage() {
           <div className="px-7 py-4 bg-paper-50 border-t border-paper-200 flex items-center justify-between">
             <Button variant="ghost" onClick={() => setStep(1)}>← 上一步</Button>
             <Button variant="primary"
-                    disabled={!title.trim()}
+                    disabled={!isStep2Valid}
                     onClick={() => {
                       if (!title.trim()) {
                         setTitleError('请输入作品名称')
                         return
                       }
+                      if (needsTotalUnits && !(Number(totalUnits) > 0)) {
+                        setTotalUnitsError(`请输入总${typeMeta?.unit_label || '集'}数`)
+                        return
+                      }
                       setTitleError('')
+                      setTotalUnitsError('')
                       setStep(3)
                     }}>
               下一步
@@ -363,14 +378,14 @@ function SectionTitle({ children }) {
  * 12 列 grid 容器
  */
 function FormGrid({ children }) {
-  return <div className="grid grid-cols-12 gap-x-5 gap-y-5">{children}</div>
+  return <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-5">{children}</div>
 }
 
 /**
  * 字段容器 - 12 列 grid 子项
  */
 function Field({ span = 12, label, hint, required, error, children }) {
-  const spanClass = span === 6 ? 'col-span-12 sm:col-span-6' : 'col-span-12'
+  const spanClass = span === 6 ? 'col-span-1' : 'col-span-1 md:col-span-2'
   return (
     <div className={spanClass}>
       <label className="text-[13px] font-semibold text-ink-700 mb-2 flex items-center gap-1.5">
@@ -386,6 +401,24 @@ function Field({ span = 12, label, hint, required, error, children }) {
       )}
     </div>
   )
+}
+
+function fieldControlClass(hasError = false) {
+  return `w-full min-h-11 rounded-xl border px-3.5 text-sm text-ink-900 bg-slate-50/80 placeholder:text-ink-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition ${hasError
+    ? 'border-red-400 focus:border-red-500 focus:ring-4 focus:ring-red-100'
+    : 'border-slate-300 hover:border-slate-400 focus:border-brand-600 focus:ring-4 focus:ring-brand-100'} focus:outline-none`
+}
+
+function TextInput({ hasError, type = 'text', className = '', ...props }) {
+  return <input type={type} className={`${fieldControlClass(hasError)} ${className}`} {...props} />
+}
+
+function TextArea({ hasError, className = '', ...props }) {
+  return <textarea className={`${fieldControlClass(hasError)} min-h-[120px] py-2.5 resize-y ${className}`} {...props} />
+}
+
+function SelectInput({ hasError, className = '', ...props }) {
+  return <select className={`${fieldControlClass(hasError)} pr-10 ${className}`} {...props} />
 }
 
 /**
