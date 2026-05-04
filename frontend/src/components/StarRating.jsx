@@ -4,7 +4,7 @@ import { Star } from 'lucide-react'
 /**
  * 1-10 颗星评分，0.5 步进
  */
-export function StarRating({ value, onChange, size = 22, readonly = false }) {
+export function StarRating({ value, onChange, size = 20, readonly = false, showScore = true, className = '' }) {
   const [hover, setHover] = useState(null)
 
   const display = hover ?? value ?? 0
@@ -26,56 +26,56 @@ export function StarRating({ value, onChange, size = 22, readonly = false }) {
     }
   }
 
+  const scoreText = `${(display > 0 ? display : 0).toFixed(1)} / 10`
+
   return (
-    <div className="inline-flex max-w-full items-center gap-2">
-      <div
-        className="flex items-center gap-0.5"
-        onMouseLeave={() => setHover(null)}
-      >
-        {stars.map(s => (
-          <div key={s.index} className="relative" style={{ width: size, height: size }}>
-            <Star
-              size={size}
-              className="absolute inset-0 text-paper-300"
-              strokeWidth={1.5}
-            />
-            {(s.filled || s.half) && (
-              <div
-                className="absolute inset-0 overflow-hidden"
-                style={{ width: s.half ? size / 2 : size }}
-              >
-                <Star
-                  size={size}
-                  className="text-amber-400 fill-amber-400"
-                  strokeWidth={1.5}
-                />
-              </div>
-            )}
-            {!readonly && (
-              <>
+    <div className={`w-full ${className}`.trim()}>
+      <div className="flex w-full flex-col items-start gap-2 min-[460px]:flex-row min-[460px]:items-center min-[460px]:justify-between">
+        <div className="flex max-w-full flex-wrap items-center gap-0.5" onMouseLeave={() => setHover(null)}>
+          {stars.map(s => (
+            <div key={s.index} className="relative" style={{ width: size, height: size }}>
+              <Star
+                size={size}
+                className="absolute inset-0 text-paper-300"
+                strokeWidth={1.5}
+              />
+              {(s.filled || s.half) && (
                 <div
-                  className="absolute top-0 left-0 h-full cursor-pointer"
-                  style={{ width: size / 2 }}
-                  onMouseEnter={() => setHover(s.index - 0.5)}
-                  onClick={() => handleClick(s.index, true)}
-                />
-                <div
-                  className="absolute top-0 right-0 h-full cursor-pointer"
-                  style={{ width: size / 2 }}
-                  onMouseEnter={() => setHover(s.index)}
-                  onClick={() => handleClick(s.index, false)}
-                />
-              </>
-            )}
+                  className="absolute inset-0 overflow-hidden"
+                  style={{ width: s.half ? size / 2 : size }}
+                >
+                  <Star
+                    size={size}
+                    className="text-amber-400 fill-amber-400"
+                    strokeWidth={1.5}
+                  />
+                </div>
+              )}
+              {!readonly && (
+                <>
+                  <div
+                    className="absolute top-0 left-0 h-full cursor-pointer"
+                    style={{ width: size / 2 }}
+                    onMouseEnter={() => setHover(s.index - 0.5)}
+                    onClick={() => handleClick(s.index, true)}
+                  />
+                  <div
+                    className="absolute top-0 right-0 h-full cursor-pointer"
+                    style={{ width: size / 2 }}
+                    onMouseEnter={() => setHover(s.index)}
+                    onClick={() => handleClick(s.index, false)}
+                  />
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+        {showScore && (
+          <div className="rounded-md bg-paper-100 px-2.5 py-1 text-sm font-semibold tabular-nums text-ink-700">
+            {scoreText}
           </div>
-        ))}
+        )}
       </div>
-      <span
-        className={`text-base font-semibold tabular-nums whitespace-nowrap text-right flex-shrink-0 ${display > 0 ? 'text-ink-900' : 'text-transparent'}`}
-      >
-        {(display > 0 ? display : 0).toFixed(1)}
-        <span className={`text-sm font-normal ${display > 0 ? 'text-ink-400' : 'text-transparent'}`}> / 10</span>
-      </span>
     </div>
   )
 }
