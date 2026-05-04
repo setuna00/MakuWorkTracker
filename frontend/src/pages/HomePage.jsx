@@ -164,7 +164,7 @@ function Section({ title, action, children }) {
   return (
     <section>
       <div className="flex items-end justify-between mb-3">
-        <h2 className="text-sm font-medium text-ink-700">{title}</h2>
+        <h2 className="text-xl font-semibold text-ink-800 tracking-tight">{title}</h2>
         {action}
       </div>
       {children}
