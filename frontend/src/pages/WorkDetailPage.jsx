@@ -136,13 +136,21 @@ export default function WorkDetailPage() {
               </div>
             )}
 
-            <div className="flex flex-wrap gap-1.5 items-center">
-              {work.tags.map(t => (
-                <TagChip key={t.id} color={t.color}>{t.name}</TagChip>
-              ))}
-              {work.collections.map(c => (
-                <TagChip key={`c-${c.id}`} color={c.border_color}>★ {c.name}</TagChip>
-              ))}
+            <div className="space-y-2">
+              {work.collections.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  {work.collections.map(c => (
+                    <TagChip key={`c-${c.id}`} color={c.border_color}>★ {c.name}</TagChip>
+                  ))}
+                </div>
+              )}
+              {work.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  {work.tags.map(t => (
+                    <TagChip key={t.id} color={t.color}>{t.name}</TagChip>
+                  ))}
+                </div>
+              )}
               {work.tags.length === 0 && work.collections.length === 0 && (
                 <button onClick={() => setEditMetaOpen(true)}
                         className="text-[11px] text-ink-400 hover:text-brand-600 transition-colors">

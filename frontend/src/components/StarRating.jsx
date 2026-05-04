@@ -27,7 +27,7 @@ export function StarRating({ value, onChange, size = 22, readonly = false }) {
   }
 
   return (
-    <div className="inline-flex items-center gap-3">
+    <div className="inline-flex max-w-full items-center gap-2">
       <div
         className="flex items-center gap-0.5"
         onMouseLeave={() => setHover(null)}
@@ -71,7 +71,7 @@ export function StarRating({ value, onChange, size = 22, readonly = false }) {
         ))}
       </div>
       <span
-        className={`text-base font-semibold tabular-nums min-w-[68px] text-right ${display > 0 ? 'text-ink-900' : 'text-transparent'}`}
+        className={`text-base font-semibold tabular-nums whitespace-nowrap text-right flex-shrink-0 ${display > 0 ? 'text-ink-900' : 'text-transparent'}`}
       >
         {(display > 0 ? display : 0).toFixed(1)}
         <span className={`text-sm font-normal ${display > 0 ? 'text-ink-400' : 'text-transparent'}`}> / 10</span>
