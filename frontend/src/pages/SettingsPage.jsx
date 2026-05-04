@@ -283,6 +283,7 @@ function CollectionsSection() {
 
 function DataSection() {
   const queryClient = useQueryClient()
+  const [importFile, setImportFile] = useState(null)
   const { data: backupData } = useQuery({
     queryKey: ['backups'],
     queryFn: api.listBackups,
@@ -292,6 +293,15 @@ function DataSection() {
   const triggerBackup = useMutation({
     mutationFn: api.triggerBackup,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
+  })
+  const importBackup = useMutation({
+    mutationFn: () => api.importJson(importFile),
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+      setImportFile(null)
+      alert('导入完成，页面将刷新以加载新数据。')
+      window.location.reload()
+    },
   })
 
   return (
@@ -305,6 +315,27 @@ function DataSection() {
           </Button>
           <Button variant="default" onClick={() => window.location = api.exportCsvUrl()}>
             <Download size={14} /> 导出 CSV
+          </Button>
+        </div>
+      </div>
+      <div className="card p-5">
+        <div className="text-sm font-medium mb-1">导入数据</div>
+        <div className="text-xs text-ink-500 mb-3">
+          支持导入“导出 JSON（含封面）”下载的 zip。导入会覆盖当前全部数据。
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="file"
+            accept=".zip,application/zip"
+            className="input-compact max-w-sm"
+            onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+          />
+          <Button
+            variant="primary"
+            onClick={() => importBackup.mutate()}
+            disabled={!importFile || importBackup.isPending}
+          >
+            {importBackup.isPending ? '导入中...' : '导入并覆盖'}
           </Button>
         </div>
       </div>

@@ -4,7 +4,7 @@ import { Star } from 'lucide-react'
 /**
  * 1-10 颗星评分，0.5 步进
  */
-export function StarRating({ value, onChange, size = 26, readonly = false }) {
+export function StarRating({ value, onChange, size = 22, readonly = false }) {
   const [hover, setHover] = useState(null)
 
   const display = hover ?? value ?? 0
@@ -27,7 +27,7 @@ export function StarRating({ value, onChange, size = 26, readonly = false }) {
   }
 
   return (
-    <div className="inline-flex items-center gap-3 flex-wrap">
+    <div className="inline-flex items-center gap-3">
       <div
         className="flex items-center gap-0.5"
         onMouseLeave={() => setHover(null)}
@@ -70,11 +70,12 @@ export function StarRating({ value, onChange, size = 26, readonly = false }) {
           </div>
         ))}
       </div>
-      {display > 0 && (
-        <span className="text-base font-semibold tabular-nums text-ink-900">
-          {display.toFixed(1)}<span className="text-ink-400 text-sm font-normal"> / 10</span>
-        </span>
-      )}
+      <span
+        className={`text-base font-semibold tabular-nums min-w-[68px] text-right ${display > 0 ? 'text-ink-900' : 'text-transparent'}`}
+      >
+        {(display > 0 ? display : 0).toFixed(1)}
+        <span className={`text-sm font-normal ${display > 0 ? 'text-ink-400' : 'text-transparent'}`}> / 10</span>
+      </span>
     </div>
   )
 }
