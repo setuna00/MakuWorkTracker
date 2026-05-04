@@ -357,6 +357,9 @@ function WorkActionsMenu({ canDeleteRound, onEdit, onDeleteRound, onDelete }) {
   )
 }
 
+const INFO_CARD_BASE = 'h-full rounded-xl border border-paper-200 bg-paper-50 p-4 sm:p-5 flex flex-col justify-between gap-3'
+const INFO_CARD_TITLE = 'text-[11px] font-medium uppercase tracking-wide text-ink-500'
+
 function StatusEditor({ watching }) {
   const queryClient = useQueryClient()
   const STATUSES = {
@@ -370,22 +373,23 @@ function StatusEditor({ watching }) {
     onSuccess: () => queryClient.invalidateQueries(),
   })
   return (
-    <div className="bg-paper-50 border border-paper-200 rounded-lg p-4">
-      <div className="text-xs text-ink-500 mb-2">追看状态</div>
-      <div className="flex flex-wrap gap-1.5">
+    <div className={INFO_CARD_BASE}>
+      <div className={INFO_CARD_TITLE}>追看状态</div>
+      <div className="grid grid-cols-2 gap-2">
         {Object.entries(STATUSES).map(([k, v]) => {
           const active = watching.personal_status === k
           return (
             <button key={k}
                     onClick={() => update.mutate(k)}
-                    className="px-2.5 py-1 rounded text-xs font-medium border transition-colors"
+                    className="h-10 rounded-lg border text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1"
                     style={active ? {
                       background: v.color,
                       borderColor: v.color,
                       color: '#ffffff',
+                      boxShadow: '0 6px 16px -10px rgba(15,23,42,0.65)',
                     } : {
-                      background: v.color + '15',
-                      borderColor: v.color + '40',
+                      background: '#ffffff',
+                      borderColor: v.color + '55',
                       color: v.color,
                     }}>
               {v.label}
@@ -404,9 +408,17 @@ function RatingEditor({ watching }) {
     onSuccess: () => queryClient.invalidateQueries(),
   })
   return (
-    <div className="bg-paper-50 border border-paper-200 rounded-lg p-4">
-      <div className="text-xs text-ink-500 mb-2">评分</div>
-      <StarRating value={watching.rating} onChange={(v) => update.mutate(v)} size={24} />
+    <div className={INFO_CARD_BASE}>
+      <div className={INFO_CARD_TITLE}>评分</div>
+      <div className="flex-1 flex items-center">
+        <StarRating
+          value={watching.rating}
+          onChange={(v) => update.mutate(v)}
+          size={20}
+          showScore
+          className="w-full"
+        />
+      </div>
     </div>
   )
 }
@@ -419,9 +431,9 @@ function ProgressDisplay({ watching, unitLabel, totalUnits, isMovie }) {
     // 电影只显示是否看过
     const watched = watching.personal_status === 'done' || cur != null
     return (
-      <div className="bg-paper-50 border border-paper-200 rounded-lg p-4">
-        <div className="text-xs text-ink-500 mb-2">观看状态</div>
-        <div className="text-base font-semibold">
+      <div className={INFO_CARD_BASE}>
+        <div className={INFO_CARD_TITLE}>观看状态</div>
+        <div className="text-lg font-semibold leading-none">
           {watched
             ? <span className="text-green-700">已观看</span>
             : <span className="text-ink-400 font-normal">未观看</span>}
@@ -431,18 +443,26 @@ function ProgressDisplay({ watching, unitLabel, totalUnits, isMovie }) {
   }
 
   return (
-    <div className="bg-paper-50 border border-paper-200 rounded-lg p-4">
-      <div className="text-xs text-ink-500 mb-2">进度</div>
-      <div className="text-base font-semibold text-ink-900 mb-2">
-        {cur != null
-          ? `${cur}${totalUnits ? ' / ' + totalUnits : ''} ${unitLabel}`
-          : <span className="text-ink-400 font-normal">未开始</span>}
-      </div>
-      {pct != null && (
-        <div className="h-1.5 bg-paper-200 rounded-full overflow-hidden">
-          <div className="h-full bg-brand-600 transition-all" style={{ width: `${pct}%` }} />
+    <div className={INFO_CARD_BASE}>
+      <div className={INFO_CARD_TITLE}>进度</div>
+      <div className="flex-1 flex flex-col justify-center">
+        <div className="text-2xl font-semibold text-ink-900 leading-none mb-2 tabular-nums">
+          {cur != null
+            ? `${cur}${totalUnits ? ' / ' + totalUnits : ''}`
+            : <span className="text-ink-400 text-lg font-medium">未开始</span>}
+          {cur != null && <span className="ml-1.5 text-sm font-medium text-ink-500">{unitLabel}</span>}
         </div>
-      )}
+        {pct != null ? (
+          <div className="space-y-1.5">
+            <div className="h-2 bg-paper-200 rounded-full overflow-hidden">
+              <div className="h-full bg-brand-600 transition-all" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="text-xs text-ink-500 tabular-nums">已完成 {pct.toFixed(0)}%</div>
+          </div>
+        ) : (
+          <div className="text-xs text-ink-400">记录进度后将显示完成比例</div>
+        )}
+      </div>
     </div>
   )
 }
