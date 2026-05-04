@@ -4,7 +4,7 @@ import { Star } from 'lucide-react'
 /**
  * 1-10 颗星评分，0.5 步进
  */
-export function StarRating({ value, onChange, size = 26, readonly = false }) {
+export function StarRating({ value, onChange, size = 22, readonly = false }) {
   const [hover, setHover] = useState(null)
 
   const display = hover ?? value ?? 0

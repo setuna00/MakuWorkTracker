@@ -5,7 +5,7 @@ import json
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlmodel import Session, select
 from ..db import get_session
@@ -173,3 +173,93 @@ def admin_info(session: Session = Depends(get_session)):
         "db_size_bytes": db_size,
         "data_dir": str(settings.data_dir),
     }
+
+
+@router.post("/import/json")
+def import_json_backup(file: UploadFile = File(...), session: Session = Depends(get_session)):
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="请上传 zip 格式导出文件")
+
+    try:
+        raw = file.file.read()
+        with zipfile.ZipFile(io.BytesIO(raw), "r") as zf:
+            if "data.json" not in zf.namelist():
+                raise HTTPException(status_code=400, detail="导出包缺少 data.json")
+            payload = json.loads(zf.read("data.json").decode("utf-8"))
+
+            # 清空旧数据（按外键依赖顺序）
+            session.exec(select(ProgressEntry)).all()
+            for row in session.exec(select(ProgressEntry)).all():
+                session.delete(row)
+            for row in session.exec(select(Watching)).all():
+                session.delete(row)
+            for row in session.exec(select(Work)).all():
+                session.delete(row)
+            for row in session.exec(select(Tag)).all():
+                session.delete(row)
+            for row in session.exec(select(Collection)).all():
+                session.delete(row)
+            session.commit()
+
+            # 恢复标签/收藏夹（保留原 id）
+            tag_map = {}
+            for t in payload.get("tags", []):
+                obj = Tag(id=t.get("id"), name=t["name"], color=t.get("color", "#888780"))
+                session.add(obj)
+                tag_map[obj.id] = obj
+            col_map = {}
+            for c in payload.get("collections", []):
+                obj = Collection(
+                    id=c.get("id"),
+                    name=c["name"],
+                    border_color=c.get("border_color", "#5DCAA5"),
+                    sort_order=c.get("sort_order", 0),
+                )
+                session.add(obj)
+                col_map[obj.id] = obj
+            session.commit()
+
+            # 恢复作品与关联
+            for w in payload.get("works", []):
+                obj = Work(
+                    id=w.get("id"),
+                    title=w["title"],
+                    original_title=w.get("original_title"),
+                    type=w["type"],
+                    cover_path=w.get("cover_path"),
+                    cover_thumb_path=w.get("cover_thumb_path"),
+                    description=w.get("description"),
+                    release_status=w.get("release_status", "ongoing"),
+                    total_units=w.get("total_units"),
+                    total_subunits=w.get("total_subunits"),
+                    creators=w.get("creators") or {},
+                )
+                obj.tags = [tag_map[x] for x in w.get("tag_ids", []) if x in tag_map]
+                obj.collections = [col_map[x] for x in w.get("collection_ids", []) if x in col_map]
+                session.add(obj)
+            session.commit()
+
+            for x in payload.get("watchings", []):
+                session.add(Watching(**x))
+            for e in payload.get("progress_entries", []):
+                session.add(ProgressEntry(**e))
+            session.commit()
+
+            # 恢复封面文件
+            for name in zf.namelist():
+                if not name.startswith("covers/") or name.endswith("/"):
+                    continue
+                target = (settings.data_dir / name).resolve()
+                if not str(target).startswith(str(settings.data_dir.resolve())):
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(name) as src, open(target, "wb") as dst:
+                    dst.write(src.read())
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=f"导入失败: {e}")
+
+    return {"ok": True}

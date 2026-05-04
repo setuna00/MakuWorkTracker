@@ -96,6 +96,16 @@ export const api = {
   listBackups: () => request('/api/admin/backups'),
   exportJsonUrl: () => '/api/admin/export/json',
   exportCsvUrl: () => '/api/admin/export/csv',
+  importJson: (zipFile) => {
+    const fd = new FormData()
+    fd.append('file', zipFile)
+    return fetch('/api/admin/import/json', { method: 'POST', body: fd })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await r.text())
+        const ct = r.headers.get('content-type') || ''
+        return ct.includes('application/json') ? r.json() : null
+      })
+  },
   getInfo: () => request('/api/admin/info'),
 }
 

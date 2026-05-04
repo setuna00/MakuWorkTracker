@@ -136,8 +136,8 @@ function NavItem({ to, icon, children }) {
              className={({ isActive }) =>
                `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] mb-0.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-1 ${
                  isActive
-                   ? 'bg-brand-600 text-white font-medium border border-transparent [&_svg]:text-white'
-                   : 'text-ink-700 hover:bg-paper-100 border border-transparent'
+                   ? 'bg-brand-600 text-white visited:text-white font-medium border border-transparent [&_svg]:text-white'
+                   : 'text-ink-700 visited:text-ink-700 hover:bg-paper-100 border border-transparent'
                }`
              }>
       {icon} {children}
