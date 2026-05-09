@@ -2,10 +2,10 @@
 from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from ..db import get_session
 from ..models import Work, Watching, ProgressEntry
-from ..models.enums import ReleaseStatus, TYPES_WITH_RANGE_PROGRESS
+from ..models.enums import ReleaseStatus, PersonalStatus, TYPES_WITH_RANGE_PROGRESS
 from ..schemas import ProgressEntryCreate, ProgressEntryUpdate, ProgressEntryRead
 
 router = APIRouter(tags=["progress"])
@@ -35,6 +35,37 @@ def _maybe_extend_total(session: Session, work: Work, range_end):
         work.total_units = range_end
         work.updated_at = datetime.now(timezone.utc)
         session.add(work)
+
+
+def _sync_watching_completion(session: Session, watching: Watching, work: Work):
+    """根据当前所有进度，自动同步周目 finished_at / personal_status。"""
+    if work.release_status != ReleaseStatus.finished or work.total_units is None:
+        return
+
+    max_range_end = session.exec(
+        select(func.max(ProgressEntry.range_end)).where(ProgressEntry.watching_id == watching.id)
+    ).one()
+
+    reached_end = max_range_end is not None and max_range_end >= work.total_units
+    changed = False
+    if reached_end:
+        if watching.finished_at is None:
+            watching.finished_at = datetime.now(timezone.utc).date()
+            changed = True
+        if watching.personal_status != PersonalStatus.done:
+            watching.personal_status = PersonalStatus.done
+            changed = True
+    else:
+        if watching.finished_at is not None:
+            watching.finished_at = None
+            changed = True
+        if watching.personal_status == PersonalStatus.done:
+            watching.personal_status = PersonalStatus.watching
+            changed = True
+
+    if changed:
+        watching.updated_at = datetime.now(timezone.utc)
+        session.add(watching)
 
 
 @router.get("/api/watchings/{watching_id}/entries", response_model=List[ProgressEntryRead])
@@ -84,13 +115,7 @@ def create_entry(
     if watching.started_at is None:
         watching.started_at = data.date
         session.add(watching)
-    # 如果到达 total_units 且作品已完结，自动设 finished_at
-    if (work.release_status == ReleaseStatus.finished
-            and work.total_units is not None
-            and data.range_end == work.total_units
-            and watching.finished_at is None):
-        watching.finished_at = data.date
-        session.add(watching)
+    _sync_watching_completion(session, watching, work)
 
     session.commit()
     session.refresh(entry)
@@ -137,6 +162,7 @@ def update_entry(
 
     # 仍可能引发自动扩 total_units
     _maybe_extend_total(session, work, entry.range_end)
+    _sync_watching_completion(session, watching, work)
 
     session.add(entry)
     session.commit()
@@ -149,6 +175,10 @@ def delete_entry(entry_id: int, session: Session = Depends(get_session)):
     entry = session.get(ProgressEntry, entry_id)
     if not entry:
         raise HTTPException(404, "Entry not found")
+    watching = session.get(Watching, entry.watching_id)
+    work = session.get(Work, watching.work_id) if watching else None
     session.delete(entry)
+    if watching and work:
+        _sync_watching_completion(session, watching, work)
     session.commit()
     return {"ok": True}
