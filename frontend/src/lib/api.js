@@ -28,9 +28,19 @@ export const api = {
 
   // ---- works ----
   listWorks: (params = {}) => {
-    const q = new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
-    ).toString()
+    const sp = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) {
+      if (v === undefined || v === null || v === '') continue
+      if (Array.isArray(v)) {
+        for (const item of v) {
+          if (item === undefined || item === null || item === '') continue
+          sp.append(k, item)
+        }
+      } else {
+        sp.append(k, v)
+      }
+    }
+    const q = sp.toString()
     return request(`/api/works${q ? '?' + q : ''}`)
   },
   getWork: (id) => request(`/api/works/${id}`),
@@ -60,6 +70,7 @@ export const api = {
 
   // ---- progress ----
   listEntries: (watchingId) => request(`/api/watchings/${watchingId}/entries`),
+  getEntry: (id) => request(`/api/entries/${id}`),
   createEntry: (watchingId, data) =>
     request(`/api/watchings/${watchingId}/entries`, { method: 'POST', body: JSON.stringify(data) }),
   updateEntry: (id, data) =>
@@ -68,7 +79,14 @@ export const api = {
     request(`/api/entries/${id}`, { method: 'DELETE' }),
 
   // ---- tags ----
-  listTags: () => request('/api/tags'),
+  listTags: (params = {}) => {
+    const sp = new URLSearchParams()
+    if (params.in_collection != null && params.in_collection !== '') {
+      sp.append('in_collection', params.in_collection)
+    }
+    const q = sp.toString()
+    return request(`/api/tags${q ? '?' + q : ''}`)
+  },
   createTag: (data) => request('/api/tags', { method: 'POST', body: JSON.stringify(data) }),
   updateTag: (id, data) => request(`/api/tags/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteTag: (id) => request(`/api/tags/${id}`, { method: 'DELETE' }),

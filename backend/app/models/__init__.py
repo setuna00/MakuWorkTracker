@@ -58,6 +58,7 @@ class Work(SQLModel, table=True):
     release_status: ReleaseStatus = Field(default=ReleaseStatus.ongoing)
     total_units: Optional[int] = None       # 总集数/章数
     total_subunits: Optional[int] = None    # 总页数（可选）
+    unit_label: Optional[str] = None        # 自定义进度单位（覆盖类型默认）；未设置时走 meta 默认
     creators: dict = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

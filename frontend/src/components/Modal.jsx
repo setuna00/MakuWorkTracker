@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { useT } from '../lib/i18n'
 
 export function Modal({ open, onClose, title, children, size = 'md' }) {
   if (!open) return null
@@ -56,15 +57,16 @@ export function Button({ children, variant = 'default', className = '', ...props
  * @param confirmText 确认按钮文字（默认"确认"）
  * @param danger      是否危险操作（红色按钮）
  */
-export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmText = '确认', danger = false }) {
+export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmText, danger = false }) {
+  const t = useT()
   if (!open) return null
   return (
     <Modal open={true} onClose={onClose} title={title} size="sm">
       <div className="text-sm text-ink-700 mb-5 leading-relaxed">{message}</div>
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>取消</Button>
+        <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
         <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
-          {confirmText}
+          {confirmText ?? t('common.confirm')}
         </Button>
       </div>
     </Modal>

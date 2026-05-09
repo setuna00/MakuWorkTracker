@@ -188,7 +188,6 @@ def import_json_backup(file: UploadFile = File(...), session: Session = Depends(
             payload = json.loads(zf.read("data.json").decode("utf-8"))
 
             # 清空旧数据（按外键依赖顺序）
-            session.exec(select(ProgressEntry)).all()
             for row in session.exec(select(ProgressEntry)).all():
                 session.delete(row)
             for row in session.exec(select(Watching)).all():
@@ -232,6 +231,7 @@ def import_json_backup(file: UploadFile = File(...), session: Session = Depends(
                     release_status=w.get("release_status", "ongoing"),
                     total_units=w.get("total_units"),
                     total_subunits=w.get("total_subunits"),
+                    unit_label=w.get("unit_label"),
                     creators=w.get("creators") or {},
                 )
                 obj.tags = [tag_map[x] for x in w.get("tag_ids", []) if x in tag_map]
@@ -239,10 +239,12 @@ def import_json_backup(file: UploadFile = File(...), session: Session = Depends(
                 session.add(obj)
             session.commit()
 
+            # 用 model_validate 让 Pydantic 自动把 ISO 字符串解析成 date / datetime
+            # —— 直接 Watching(**x) 不会触发字段验证，导致字符串被原样塞进 SQLite Date 列报错
             for x in payload.get("watchings", []):
-                session.add(Watching(**x))
+                session.add(Watching.model_validate(x))
             for e in payload.get("progress_entries", []):
-                session.add(ProgressEntry(**e))
+                session.add(ProgressEntry.model_validate(e))
             session.commit()
 
             # 恢复封面文件

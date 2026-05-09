@@ -75,6 +75,7 @@ def get_timeline(
                 work_id=first_work.id,
                 work_title=first_work.title,
                 work_type=first_work.type,
+                work_unit_label=first_work.unit_label,
                 work_cover_thumb=first_work.cover_thumb_path,
                 watching_id=watching_id,
                 round_number=first_w.round_number,

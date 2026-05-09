@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
+import { useT } from '../lib/i18n'
 
 /**
  * 封面裁剪器（固定 3:4 比例）
@@ -14,6 +15,7 @@ import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
  * @param onConfirm   (croppedFile: File) => void
  */
 export function CoverCropper({ file, onCancel, onConfirm }) {
+  const t = useT()
   const containerRef = useRef(null)
   const imgRef = useRef(null)
 
@@ -178,7 +180,7 @@ export function CoverCropper({ file, onCancel, onConfirm }) {
       const blob = await new Promise(resolve =>
         canvas.toBlob(resolve, 'image/jpeg', 0.92)
       )
-      if (!blob) throw new Error('无法生成裁剪图')
+      if (!blob) throw new Error('blob failed')
 
       const out = new File([blob], (file.name || 'cover').replace(/\.[^.]+$/, '') + '.jpg', {
         type: 'image/jpeg',
@@ -186,7 +188,7 @@ export function CoverCropper({ file, onCancel, onConfirm }) {
       onConfirm(out)
     } catch (e) {
       console.error(e)
-      alert('裁剪失败：' + e.message)
+      alert(t('cover.cropFailed', { msg: e.message }))
     } finally {
       setConfirming(false)
     }
@@ -197,7 +199,7 @@ export function CoverCropper({ file, onCancel, onConfirm }) {
   return (
     <div className="space-y-3">
       <div className="text-xs text-ink-500">
-        拖动图片调整位置 · 滚轮或滑块缩放 · 输出固定 3:4 封面比例
+        {t('cover.cropperHint')}
       </div>
 
       <div className="flex justify-center">
@@ -213,7 +215,7 @@ export function CoverCropper({ file, onCancel, onConfirm }) {
             ref={imgRef}
             src={imgUrl}
             onLoad={onImgLoad}
-            alt="封面"
+            alt={t('newWork.cropper.title')}
             draggable={false}
             crossOrigin="anonymous"
             style={{
@@ -251,7 +253,7 @@ export function CoverCropper({ file, onCancel, onConfirm }) {
         </button>
         <button type="button" onClick={reset}
                 className="p-1.5 rounded-md hover:bg-paper-100 text-ink-700"
-                title="重置">
+                title={t('cover.reset')}>
           <RotateCcw size={16} />
         </button>
       </div>
@@ -259,11 +261,11 @@ export function CoverCropper({ file, onCancel, onConfirm }) {
       <div className="flex justify-end gap-2 pt-2 border-t border-paper-200">
         <button type="button" onClick={onCancel}
                 className="px-3.5 py-1.5 rounded-md text-sm font-medium hover:bg-paper-100 text-ink-700">
-          取消
+          {t('common.cancel')}
         </button>
         <button type="button" onClick={handleConfirm} disabled={confirming}
                 className="px-3.5 py-1.5 rounded-md text-sm font-medium bg-brand-800 hover:bg-brand-700 text-white disabled:opacity-50">
-          {confirming ? '处理中...' : '应用裁剪'}
+          {confirming ? t('common.processing') : t('cover.applyCrop')}
         </button>
       </div>
     </div>

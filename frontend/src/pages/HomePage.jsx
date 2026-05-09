@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw, ArrowRight } from 'lucide-react'
 import { api } from '../lib/api'
-import { relativeDate } from '../lib/format'
+import { relativeDate, formatRange } from '../lib/format'
+import { useT, translateUnit } from '../lib/i18n'
 import { WorkCard } from '../components/WorkCard'
 import { QuickRecordModal } from '../components/QuickRecordModal'
 
 export default function HomePage() {
+  const t = useT()
   const [recordingWork, setRecordingWork] = useState(null)
   const [recommendSeed, setRecommendSeed] = useState(0)
 
@@ -18,8 +20,8 @@ export default function HomePage() {
   })
 
   const { data: watching = [] } = useQuery({
-    queryKey: ['works', { personal_status: 'watching' }],
-    queryFn: () => api.listWorks({ personal_status: 'watching' }),
+    queryKey: ['works', { personal_status: 'watching', sort: 'last_progress' }],
+    queryFn: () => api.listWorks({ personal_status: 'watching', sort: 'last_progress', order: 'desc' }),
   })
   const { data: wantList = [] } = useQuery({
     queryKey: ['works', { personal_status: 'want' }],
@@ -50,67 +52,76 @@ export default function HomePage() {
     enabled: !!recordingWork,
   })
 
-  const getUnitLabel = (type) =>
-    typesMeta.types?.find(t => t.value === type)?.unit_label || '集'
+  // 兼容两种入参:work 对象(优先 work.unit_label)或 timeline item(优先 work_unit_label)
+  const getUnitLabel = (workOrItem) => {
+    let raw
+    if (workOrItem?.unit_label) raw = workOrItem.unit_label
+    else if (workOrItem?.work_unit_label) raw = workOrItem.work_unit_label
+    else {
+      const ty = workOrItem?.type ?? workOrItem?.work_type
+      raw = typesMeta.types?.find(x => x.value === ty)?.unit_label || '集'
+    }
+    return translateUnit(raw, t)
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-8">
       <Section
-        title={`在看中 · ${watching.length}`}
+        title={t('home.watching', { count: watching.length })}
         action={
           <Link to="/library?personal_status=watching"
                 className="text-[12px] text-brand-600 hover:text-brand-700 flex items-center gap-1">
-            查看全部 <ArrowRight size={12} />
+            {t('home.viewAll')} <ArrowRight size={12} />
           </Link>
         }>
         {watching.length === 0 ? (
-          <EmptyHint text="还没有在看的作品" />
+          <EmptyHint text={t('home.watchingEmpty')} />
         ) : (
-          <div className="flex gap-4 overflow-x-auto scrollbar-thin pb-2 -mx-2 px-2">
+          <div className="flex md:flex-wrap gap-4 overflow-x-auto md:overflow-visible scrollbar-thin pb-2 -mx-2 px-2">
             {watching.map(w => (
-              <WorkCard key={w.id} work={w} mainWatching={null}
+              <WorkCard key={w.id} work={w} mainWatching={w.main_watching}
                         size="lg"
                         onQuickAdd={() => setRecordingWork(w)}
-                        unitLabel={getUnitLabel(w.type)} />
+                        unitLabel={getUnitLabel(w)} />
             ))}
           </div>
         )}
       </Section>
 
       <Section
-        title="想看推荐"
+        title={t('home.recommend')}
         action={
           <button onClick={() => setRecommendSeed(s => s + 1)}
                   className="text-[12px] text-ink-500 hover:text-brand-600 flex items-center gap-1 transition-colors">
-            <RefreshCw size={12} /> 换一批
+            <RefreshCw size={12} /> {t('home.recommendShuffle')}
           </button>
         }>
         {recommendations.length === 0 ? (
-          <EmptyHint text='标记为"想看"后会出现在这里' />
+          <EmptyHint text={t('home.recommendEmpty')} />
         ) : (
-          <div className="flex gap-4 overflow-x-auto scrollbar-thin pb-2 -mx-2 px-2">
+          <div className="flex md:flex-wrap gap-4 overflow-x-auto md:overflow-visible scrollbar-thin pb-2 -mx-2 px-2">
             {recommendations.map(w => (
-              <WorkCard key={w.id} work={w} mainWatching={null}
+              <WorkCard key={w.id} work={w} mainWatching={w.main_watching}
                         size="lg"
-                        unitLabel={getUnitLabel(w.type)} />
+                        unitLabel={getUnitLabel(w)} />
             ))}
           </div>
         )}
       </Section>
 
-      <Section title="本月概览">
+      <Section title={t('home.monthlyOverview')}>
         <div className="card p-6">
           <div className="grid grid-cols-3 divide-x divide-paper-200">
-            <StatBlock label="本月记录" value={monthly?.entries_count ?? '-'} unit="条" />
-            <StatBlock label="活跃作品" value={monthly?.active_works ?? '-'} unit="部" />
-            <StatBlock label="本月新开" value={monthly?.new_works ?? '-'} unit="部" />
+            <StatBlock label={t('home.stat.entries')} value={monthly?.entries_count ?? '-'} unit={t('home.stat.unitEntries')} />
+            <StatBlock label={t('home.stat.activeWorks')} value={monthly?.active_works ?? '-'} unit={t('home.stat.unitWorks')} />
+            <StatBlock label={t('home.stat.newWorks')} value={monthly?.new_works ?? '-'} unit={t('home.stat.unitWorks')} />
           </div>
         </div>
       </Section>
 
-      <Section title="最近动态">
+      <Section title={t('home.recentActivity')}>
         {(!recent || recent.days?.length === 0) ? (
-          <EmptyHint text="还没有进度记录" />
+          <EmptyHint text={t('home.entriesEmpty')} />
         ) : (
           <div className="card p-5">
             <div className="border-l-2 border-paper-200 ml-1.5 pl-5 space-y-4">
@@ -124,14 +135,12 @@ export default function HomePage() {
                       {item.work_title}
                       {item.range_start != null && (
                         <span className="text-ink-500 font-normal ml-1.5 text-[13px]">
-                          · 第 {item.range_start === item.range_end
-                            ? item.range_start
-                            : `${item.range_start}-${item.range_end}`} {getUnitLabel(item.work_type)}
+                          · {formatRange(item.range_start, item.range_end, getUnitLabel(item))}
                         </span>
                       )}
                       {item.show_round && (
                         <span className="ml-2 text-[10px] text-ink-400 font-normal">
-                          ({item.round_label || `第 ${item.round_number} 周目`})
+                          ({item.round_label || t('workDetail.round', { n: item.round_number })})
                         </span>
                       )}
                     </Link>
@@ -178,7 +187,7 @@ function StatBlock({ label, value, unit }) {
       <div className="text-xs text-ink-500 mb-1.5">{label}</div>
       <div className="flex items-baseline gap-1.5">
         <span className="text-3xl font-semibold tabular-nums text-brand-600">{value}</span>
-        <span className="text-xs text-ink-500">{unit}</span>
+        {unit && <span className="text-xs text-ink-500">{unit}</span>}
       </div>
     </div>
   )

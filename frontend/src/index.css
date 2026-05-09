@@ -6,6 +6,13 @@ html, body, #root {
   height: 100%;
 }
 
+/* 始终预留垂直滚动条空间，避免页面内容因滚动条出现/消失而横向位移
+   现代浏览器优先用 scrollbar-gutter，老浏览器降级到 overflow-y: scroll */
+html {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+
 body {
   background: #f8fafc;
   color: #0f172a;

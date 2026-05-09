@@ -3,14 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Edit2, Trash2, Plus, MoreHorizontal } from 'lucide-react'
 import { api, coverUrl } from '../lib/api'
-import { relativeDate } from '../lib/format'
+import { relativeDate, formatRange } from '../lib/format'
+import {
+  useT,
+  translateType, translateStatus, translateRelease,
+  translateUnit, translateCreatorLabel,
+} from '../lib/i18n'
 import { Button, Modal, ConfirmDialog } from '../components/Modal'
 import { QuickRecordModal } from '../components/QuickRecordModal'
 import { StarRating } from '../components/StarRating'
 import { CoverCropper } from '../components/CoverCropper'
 import { TagChip, SelectableTagChip } from '../components/TagChip'
+import { EditEntryModal } from '../components/EditEntryModal'
 
 export default function WorkDetailPage() {
+  const t = useT()
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -38,8 +45,11 @@ export default function WorkDetailPage() {
     }
   }, [work, activeRound])
 
-  const typeMeta = typesMeta.types.find(t => t.value === work?.type)
-  const unitLabel = typeMeta?.unit_label || '集'
+  const typeMeta = typesMeta.types.find(ty => ty.value === work?.type)
+  // 原始单位（中文,后端原值）—— 给 EditEntryModal、提交等 SoT 用
+  const rawUnit = work?.unit_label || typeMeta?.unit_label || '集'
+  // 显示用的单位（已 i18n）
+  const displayUnit = translateUnit(rawUnit, t)
   const isMovie = work?.type === 'movie'
 
   const currentWatching = work?.watchings.find(w => w.round_number === activeRound)
@@ -79,17 +89,16 @@ export default function WorkDetailPage() {
     mutationFn: () => api.deleteWatching(currentWatching.id),
     onSuccess: () => {
       setConfirmDeleteRound(false)
-      setActiveRound(1)  // 删除后切回 main
+      setActiveRound(1)
       queryClient.invalidateQueries({ queryKey: ['work', id] })
     },
   })
 
-  if (isLoading || !work) return <div className="text-ink-400 py-16 text-center">加载中...</div>
+  if (isLoading || !work) return <div className="text-ink-400 py-16 text-center">{t('workDetail.loading')}</div>
 
   return (
     <div className="max-w-[1100px] mx-auto pb-8">
       <div className="card p-6 md:p-7 relative">
-        {/* 右上角操作区 */}
         <div className="absolute top-5 right-5 flex items-center gap-2">
           {currentWatching && (
             <RoundSwitcher
@@ -106,7 +115,6 @@ export default function WorkDetailPage() {
           />
         </div>
 
-        {/* Hero 区 */}
         <div className="flex flex-col sm:flex-row gap-6 pr-32 mb-6">
           <div className="w-36 sm:w-44 flex-shrink-0">
             <div className="aspect-[3/4] bg-paper-100 rounded-lg overflow-hidden border border-paper-200 shadow-card">
@@ -117,8 +125,8 @@ export default function WorkDetailPage() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[11px] text-brand-600 font-medium uppercase tracking-wider mb-2">
-              {typeMeta?.label}
-              {!isMovie && ` · ${work.release_status === 'finished' ? '完结' : '连载中'}`}
+              {translateType(work.type, t)}
+              {!isMovie && ` · ${translateRelease(work.release_status, t)}`}
             </div>
             <h1 className="text-2xl font-semibold leading-tight mb-1.5 text-ink-900">{work.title}</h1>
             {work.original_title && (
@@ -129,7 +137,7 @@ export default function WorkDetailPage() {
               <div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 text-[13px] mb-4">
                 {typeMeta.creator_fields.map(f => (
                   <div key={f.key} className="contents">
-                    <span className="text-ink-400">{f.label}</span>
+                    <span className="text-ink-400">{translateCreatorLabel(f, t)}</span>
                     <span className="text-ink-700">{work.creators?.[f.key] || '-'}</span>
                   </div>
                 ))}
@@ -140,21 +148,29 @@ export default function WorkDetailPage() {
               {work.collections.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 items-center">
                   {work.collections.map(c => (
-                    <TagChip key={`c-${c.id}`} color={c.border_color}>★ {c.name}</TagChip>
+                    <TagChip key={`c-${c.id}`} color={c.border_color} colored
+                             onClick={() => navigate(`/library?collection=${c.id}`)}
+                             title={t('workDetail.tagFavoriteHint')}>
+                      ★ {c.name}
+                    </TagChip>
                   ))}
                 </div>
               )}
               {work.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 items-center">
-                  {work.tags.map(t => (
-                    <TagChip key={t.id} color={t.color}>{t.name}</TagChip>
+                  {work.tags.map(tg => (
+                    <TagChip key={tg.id}
+                             onClick={() => navigate(`/library?tag=${tg.id}`)}
+                             title={t('workDetail.tagTagHint')}>
+                      {tg.name}
+                    </TagChip>
                   ))}
                 </div>
               )}
               {work.tags.length === 0 && work.collections.length === 0 && (
                 <button onClick={() => setEditMetaOpen(true)}
                         className="text-[11px] text-ink-400 hover:text-brand-600 transition-colors">
-                  + 添加标签或加入收藏夹
+                  {t('workDetail.addTagOrFavorite')}
                 </button>
               )}
             </div>
@@ -171,7 +187,7 @@ export default function WorkDetailPage() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <StatusEditor watching={currentWatching} />
-              <ProgressDisplay watching={currentWatching} unitLabel={unitLabel} totalUnits={work.total_units}
+              <ProgressDisplay watching={currentWatching} unitLabel={displayUnit} totalUnits={work.total_units}
                                isMovie={isMovie} />
               <RatingEditor watching={currentWatching} />
             </div>
@@ -179,20 +195,20 @@ export default function WorkDetailPage() {
             <ReviewEditor watching={currentWatching} />
 
             <div className="flex items-center justify-between mt-7 mb-3">
-              <h3 className="text-sm font-medium text-ink-700">
-                进度日志 · <span className="text-brand-600">{entries.length}</span> 条
+              <h3 className="text-[13px] font-semibold text-ink-700">
+                {t('workDetail.entryLog')} · <span className="text-brand-600">{entries.length}</span>
               </h3>
               <Button variant="primary" onClick={() => setRecordOpen(true)}>
-                <Plus size={14} /> 记录新进度
+                <Plus size={14} /> {t('workDetail.recordNew')}
               </Button>
             </div>
 
             <div className="border-l-2 border-paper-200 ml-1.5 pl-5 space-y-4 pt-2">
               {groupedEntries.length === 0 && (
-                <div className="text-sm text-ink-400 py-6 italic">还没有进度记录</div>
+                <div className="text-sm text-ink-400 py-6 italic">{t('workDetail.entryLogEmpty')}</div>
               )}
               {groupedEntries.map(g => (
-                <DayEntries key={g.date} group={g} unitLabel={unitLabel}
+                <DayEntries key={g.date} group={g} unitLabel={displayUnit}
                             isMovie={isMovie}
                             onEdit={(e) => setEditingEntry(e)} />
               ))}
@@ -213,8 +229,8 @@ export default function WorkDetailPage() {
       {editingEntry && (
         <EditEntryModal
           entry={editingEntry}
-          work={work}
-          typeMeta={typeMeta}
+          hasRange={typeMeta?.has_range_progress}
+          unitLabel={rawUnit}
           onClose={() => setEditingEntry(null)}
         />
       )}
@@ -231,14 +247,14 @@ export default function WorkDetailPage() {
       <ConfirmDialog
         open={confirmDeleteWork}
         onClose={() => setConfirmDeleteWork(false)}
-        title="确认删除作品"
+        title={t('workDetail.confirmDeleteWork.title')}
         message={
           <>
-            将删除「<span className="font-medium">{work.title}</span>」及其所有周目和进度记录。
-            <span className="block text-red-600 mt-2">此操作不可恢复。</span>
+            {t('workDetail.confirmDeleteWork.body', { title: work.title })}
+            <span className="block text-red-600 mt-2">{t('workDetail.confirmDeleteWork.warn')}</span>
           </>
         }
-        confirmText="确认删除"
+        confirmText={t('common.confirmDelete')}
         danger
         onConfirm={() => deleteWorkMut.mutate()}
       />
@@ -246,15 +262,16 @@ export default function WorkDetailPage() {
       <ConfirmDialog
         open={confirmDeleteRound}
         onClose={() => setConfirmDeleteRound(false)}
-        title="确认删除周目"
+        title={t('workDetail.confirmDeleteRound.title')}
         message={
           <>
-            将删除「<span className="font-medium">{currentWatching?.label || `第 ${activeRound} 周目`}</span>」
-            及其所有进度记录、评分和总评。
-            <span className="block text-red-600 mt-2">此操作不可恢复。</span>
+            {t('workDetail.confirmDeleteRound.body', {
+              label: currentWatching?.label || t('workDetail.round', { n: activeRound })
+            })}
+            <span className="block text-red-600 mt-2">{t('workDetail.confirmDeleteWork.warn')}</span>
           </>
         }
-        confirmText="确认删除"
+        confirmText={t('common.confirmDelete')}
         danger
         onConfirm={() => deleteRoundMut.mutate()}
       />
@@ -265,6 +282,7 @@ export default function WorkDetailPage() {
 // =================== 子组件 ===================
 
 function RoundSwitcher({ work, activeRound, onSwitch }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
   const ref = useRef(null)
@@ -278,7 +296,7 @@ function RoundSwitcher({ work, activeRound, onSwitch }) {
   }, [])
 
   const current = work.watchings.find(w => w.round_number === activeRound)
-  const currentLabel = current?.label || `第 ${activeRound} 周目`
+  const currentLabel = current?.label || t('workDetail.round', { n: activeRound })
 
   const createMut = useMutation({
     mutationFn: () => api.createWatching(work.id, { personal_status: 'want' }),
@@ -304,14 +322,14 @@ function RoundSwitcher({ work, activeRound, onSwitch }) {
                     className={`block w-full text-left px-3 py-2 text-xs hover:bg-paper-100 transition-colors ${
                       w.round_number === activeRound ? 'bg-brand-50 text-brand-700 font-medium' : ''
                     }`}>
-              {w.label || `第 ${w.round_number} 周目`}
+              {w.label || t('workDetail.round', { n: w.round_number })}
             </button>
           ))}
           <button onClick={() => createMut.mutate()}
                   disabled={createMut.isPending}
                   className="block w-full text-left px-3 py-2.5 text-xs hover:bg-brand-50 text-brand-600 border-t border-paper-200 transition-colors">
             <Plus size={11} className="inline mr-1" />
-            {createMut.isPending ? '创建中...' : '开启新周目'}
+            {createMut.isPending ? t('common.creating') : t('workDetail.newRound')}
           </button>
         </div>
       )}
@@ -320,6 +338,7 @@ function RoundSwitcher({ work, activeRound, onSwitch }) {
 }
 
 function WorkActionsMenu({ canDeleteRound, onEdit, onDeleteRound, onDelete }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   useEffect(() => {
@@ -336,20 +355,20 @@ function WorkActionsMenu({ canDeleteRound, onEdit, onDeleteRound, onDelete }) {
         <MoreHorizontal size={16} />
       </button>
       {open && (
-        <div className="absolute top-full mt-1 right-0 bg-white border border-paper-200 rounded-md shadow-xl overflow-hidden min-w-[160px] z-20">
+        <div className="absolute top-full mt-1 right-0 bg-white border border-paper-200 rounded-md shadow-xl overflow-hidden min-w-[180px] z-20">
           <button onClick={() => { onEdit(); setOpen(false) }}
                   className="block w-full text-left px-3 py-2.5 text-xs hover:bg-paper-100 transition-colors">
-            <Edit2 size={11} className="inline mr-2" /> 编辑作品信息
+            <Edit2 size={11} className="inline mr-2" /> {t('workDetail.editMeta')}
           </button>
           {canDeleteRound && (
             <button onClick={() => { onDeleteRound(); setOpen(false) }}
                     className="block w-full text-left px-3 py-2.5 text-xs hover:bg-red-50 text-red-700 transition-colors border-t border-paper-200">
-              <Trash2 size={11} className="inline mr-2" /> 删除当前周目
+              <Trash2 size={11} className="inline mr-2" /> {t('workDetail.deleteRound')}
             </button>
           )}
           <button onClick={() => { onDelete(); setOpen(false) }}
                   className="block w-full text-left px-3 py-2.5 text-xs hover:bg-red-50 text-red-700 transition-colors border-t border-paper-200">
-            <Trash2 size={11} className="inline mr-2" /> 删除作品
+            <Trash2 size={11} className="inline mr-2" /> {t('workDetail.deleteWork')}
           </button>
         </div>
       )}
@@ -357,42 +376,63 @@ function WorkActionsMenu({ canDeleteRound, onEdit, onDeleteRound, onDelete }) {
   )
 }
 
-const INFO_CARD_BASE = 'h-full rounded-xl border border-paper-200 bg-paper-50 p-4 sm:p-5 flex flex-col justify-between gap-3'
-const INFO_CARD_TITLE = 'text-[11px] font-medium uppercase tracking-wide text-ink-500'
+const INFO_CARD_BASE =
+  'h-full min-h-[112px] rounded-xl border border-paper-200 bg-white p-4 flex flex-col gap-3'
+const INFO_CARD_TITLE =
+  'text-[13px] font-semibold text-ink-700'
 
 function StatusEditor({ watching }) {
+  const t = useT()
   const queryClient = useQueryClient()
-  const STATUSES = {
-    want: { label: '想看', color: '#64748b' },
-    watching: { label: '在看', color: '#2563eb' },
-    done: { label: '看完', color: '#16a34a' },
-    dropped: { label: '弃坑', color: '#dc2626' },
-  }
+  const STATUSES = [
+    {
+      key: 'want',
+      activeBg: 'bg-slate-600',
+      activeRing: 'ring-slate-600',
+      idleText: 'text-slate-600',
+    },
+    {
+      key: 'watching',
+      activeBg: 'bg-blue-600',
+      activeRing: 'ring-blue-600',
+      idleText: 'text-blue-600',
+    },
+    {
+      key: 'done',
+      activeBg: 'bg-green-600',
+      activeRing: 'ring-green-600',
+      idleText: 'text-green-700',
+    },
+    {
+      key: 'dropped',
+      activeBg: 'bg-red-600',
+      activeRing: 'ring-red-600',
+      idleText: 'text-red-600',
+    },
+  ]
   const update = useMutation({
-    mutationFn: (status) => api.updateWatching(watching.id, { personal_status: status }),
+    mutationFn: status => api.updateWatching(watching.id, { personal_status: status }),
     onSuccess: () => queryClient.invalidateQueries(),
   })
   return (
     <div className={INFO_CARD_BASE}>
-      <div className={INFO_CARD_TITLE}>追看状态</div>
-      <div className="grid grid-cols-2 gap-2">
-        {Object.entries(STATUSES).map(([k, v]) => {
-          const active = watching.personal_status === k
+      <div className={INFO_CARD_TITLE}>{t('workDetail.watchStatus')}</div>
+      <div className="grid w-full grid-cols-4 gap-1 rounded-lg bg-paper-100 p-1">
+        {STATUSES.map(s => {
+          const active = watching.personal_status === s.key
           return (
-            <button key={k}
-                    onClick={() => update.mutate(k)}
-                    className="h-10 rounded-lg border text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1"
-                    style={active ? {
-                      background: v.color,
-                      borderColor: v.color,
-                      color: '#ffffff',
-                      boxShadow: '0 6px 16px -10px rgba(15,23,42,0.65)',
-                    } : {
-                      background: '#ffffff',
-                      borderColor: v.color + '55',
-                      color: v.color,
-                    }}>
-              {v.label}
+            <button
+              key={s.key}
+              onClick={() => update.mutate(s.key)}
+              className={[
+                'h-8 rounded-md text-sm font-semibold transition-all duration-150',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
+                active
+                  ? `${s.activeBg} text-white shadow-sm ${s.activeRing}`
+                  : `bg-transparent ${s.idleText} hover:bg-white/70`,
+              ].join(' ')}
+            >
+              {translateStatus(s.key, t)}
             </button>
           )
         })}
@@ -402,65 +442,87 @@ function StatusEditor({ watching }) {
 }
 
 function RatingEditor({ watching }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const update = useMutation({
-    mutationFn: (rating) => api.updateWatching(watching.id, { rating }),
+    mutationFn: rating => api.updateWatching(watching.id, { rating }),
     onSuccess: () => queryClient.invalidateQueries(),
   })
   return (
     <div className={INFO_CARD_BASE}>
-      <div className={INFO_CARD_TITLE}>评分</div>
-      <div className="flex-1 flex items-center">
-        <StarRating
-          value={watching.rating}
-          onChange={(v) => update.mutate(v)}
-          size={20}
-          showScore
-          className="w-full"
-        />
-      </div>
+      <div className={INFO_CARD_TITLE}>{t('workDetail.rating')}</div>
+      <StarRating
+        value={watching.rating}
+        onChange={v => update.mutate(v)}
+        size={22}
+        showScore
+        scorePosition="bottom"
+      />
     </div>
   )
 }
 
 function ProgressDisplay({ watching, unitLabel, totalUnits, isMovie }) {
+  const t = useT()
   const cur = watching.current_progress
-  const pct = (cur != null && totalUnits) ? Math.min(100, (cur / totalUnits) * 100) : null
+  const pct = cur != null && totalUnits ? Math.min(100, (cur / totalUnits) * 100) : null
 
   if (isMovie) {
-    // 电影只显示是否看过
     const watched = watching.personal_status === 'done' || cur != null
     return (
       <div className={INFO_CARD_BASE}>
-        <div className={INFO_CARD_TITLE}>观看状态</div>
-        <div className="text-lg font-semibold leading-none">
-          {watched
-            ? <span className="text-green-700">已观看</span>
-            : <span className="text-ink-400 font-normal">未观看</span>}
-        </div>
+        <div className={INFO_CARD_TITLE}>{t('workDetail.viewStatus')}</div>
+        {watched ? (
+          <div className="text-xl font-semibold text-green-700 leading-none">{t('workDetail.watched')}</div>
+        ) : (
+          <div className="text-xl font-semibold text-ink-400 leading-none">{t('workDetail.unwatched')}</div>
+        )}
       </div>
     )
   }
 
   return (
     <div className={INFO_CARD_BASE}>
-      <div className={INFO_CARD_TITLE}>进度</div>
-      <div className="flex-1 flex flex-col justify-center">
-        <div className="text-2xl font-semibold text-ink-900 leading-none mb-2 tabular-nums">
-          {cur != null
-            ? `${cur}${totalUnits ? ' / ' + totalUnits : ''}`
-            : <span className="text-ink-400 text-lg font-medium">未开始</span>}
-          {cur != null && <span className="ml-1.5 text-sm font-medium text-ink-500">{unitLabel}</span>}
-        </div>
-        {pct != null ? (
-          <div className="space-y-1.5">
-            <div className="h-2 bg-paper-200 rounded-full overflow-hidden">
-              <div className="h-full bg-brand-600 transition-all" style={{ width: `${pct}%` }} />
+      <div className={INFO_CARD_TITLE}>{t('workDetail.progress')}</div>
+      <div className="flex flex-col gap-2">
+        {cur != null ? (
+          <>
+            <div className="flex items-baseline gap-1.5 tabular-nums">
+              <span className="text-xl font-semibold text-ink-900 leading-none">
+                {cur}
+              </span>
+              {totalUnits != null && (
+                <>
+                  <span className="text-sm text-ink-400 leading-none">/</span>
+                  <span className="text-sm font-medium text-ink-500 leading-none">
+                    {totalUnits}
+                  </span>
+                </>
+              )}
+              {unitLabel && (
+                <span className="ml-1 text-xs font-medium text-ink-500 leading-none">
+                  {unitLabel}
+                </span>
+              )}
             </div>
-            <div className="text-xs text-ink-500 tabular-nums">已完成 {pct.toFixed(0)}%</div>
-          </div>
+            {pct != null ? (
+              <div className="space-y-1">
+                <div className="h-1.5 bg-paper-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-brand-600 transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <div className="text-xs text-ink-500 tabular-nums">
+                  {t('workDetail.progressDone', { pct: pct.toFixed(0) })}
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-ink-400">{t('workDetail.progressNoTotal', { unit: unitLabel })}</div>
+            )}
+          </>
         ) : (
-          <div className="text-xs text-ink-400">记录进度后将显示完成比例</div>
+          <div className="text-xl font-semibold text-ink-400 leading-none">{t('workDetail.progressNotStarted')}</div>
         )}
       </div>
     </div>
@@ -468,6 +530,7 @@ function ProgressDisplay({ watching, unitLabel, totalUnits, isMovie }) {
 }
 
 function ReviewEditor({ watching }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const [val, setVal] = useState(watching.overall_review || '')
   const [dirty, setDirty] = useState(false)
@@ -478,12 +541,12 @@ function ReviewEditor({ watching }) {
   })
   return (
     <div>
-      <div className="text-sm font-medium text-ink-700 mb-2 flex items-center justify-between">
-        <span>总评（本周目）</span>
+      <div className="text-[13px] font-semibold text-ink-700 mb-2 flex items-center justify-between">
+        <span>{t('workDetail.review')}</span>
         {dirty && (
           <button onClick={() => update.mutate()}
                   className="text-xs text-brand-600 hover:text-brand-700 font-medium">
-            保存修改
+            {t('workDetail.reviewSave')}
           </button>
         )}
       </div>
@@ -491,12 +554,13 @@ function ReviewEditor({ watching }) {
                 onChange={(e) => { setVal(e.target.value); setDirty(true) }}
                 onBlur={() => dirty && update.mutate()}
                 rows={3}
-                placeholder="本周目的整体评价..." />
+                placeholder={t('workDetail.reviewPlaceholder')} />
     </div>
   )
 }
 
 function DayEntries({ group, unitLabel, isMovie, onEdit }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const [expanded, setExpanded] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
@@ -505,24 +569,40 @@ function DayEntries({ group, unitLabel, isMovie, onEdit }) {
     onSuccess: () => { queryClient.invalidateQueries(); setConfirmDel(null) },
   })
 
+  const renderRange = (start, end) => formatRange(start, end, unitLabel)
+
   return (
-    <div className="relative">
+    <div className="relative group">
       <div className="absolute -left-[26px] top-1.5 w-3 h-3 rounded-full bg-brand-500 ring-4 ring-white" />
-      <div className="text-[11px] text-ink-400 mb-0.5">{relativeDate(group.date)} · {group.date}</div>
+      <div className="flex items-center justify-between gap-2 mb-0.5">
+        <div className="text-[11px] text-ink-400">{relativeDate(group.date)} · {group.date}</div>
+        {!group.isMulti && (
+          <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+            <button onClick={() => onEdit(group.list[0])}
+                    className="p-1 hover:bg-paper-100 rounded text-ink-500"
+                    title={t('common.edit')}>
+              <Edit2 size={12} />
+            </button>
+            <button onClick={() => setConfirmDel(group.list[0])}
+                    className="p-1 hover:bg-red-50 text-red-600 rounded"
+                    title={t('common.delete')}>
+              <Trash2 size={12} />
+            </button>
+          </div>
+        )}
+      </div>
       <div className="flex items-center gap-2 mt-0.5">
         <span className="text-sm font-semibold text-ink-900">
           {isMovie
-            ? '已观看'
+            ? t('workDetail.watched')
             : group.merged_start != null
-              ? group.merged_start === group.merged_end
-                ? `第 ${group.merged_start} ${unitLabel}`
-                : `第 ${group.merged_start}-${group.merged_end} ${unitLabel}`
-              : '已观看'}
+              ? renderRange(group.merged_start, group.merged_end)
+              : t('workDetail.watched')}
         </span>
         {group.isMulti && (
           <button onClick={() => setExpanded(e => !e)}
                   className="text-[10px] px-2 py-0.5 bg-brand-50 text-brand-700 rounded font-medium">
-            合并 {group.list.length} 条 {expanded ? '▴' : '▾'}
+            {t('timeline.mergedExpand', { n: group.list.length })} {expanded ? '▴' : '▾'}
           </button>
         )}
       </div>
@@ -540,10 +620,8 @@ function DayEntries({ group, unitLabel, isMovie, onEdit }) {
               <div>
                 <div className="text-ink-700 font-medium">
                   {e.range_start != null
-                    ? e.range_start === e.range_end
-                      ? `第 ${e.range_start} ${unitLabel}`
-                      : `第 ${e.range_start}-${e.range_end} ${unitLabel}`
-                    : '已观看'}
+                    ? renderRange(e.range_start, e.range_end)
+                    : t('workDetail.watched')}
                 </div>
                 {e.note && <div className="text-ink-500 italic mt-0.5">"{e.note}"</div>}
               </div>
@@ -564,9 +642,9 @@ function DayEntries({ group, unitLabel, isMovie, onEdit }) {
       <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
-        title="确认删除记录"
-        message="将删除该条进度记录。"
-        confirmText="删除"
+        title={t('timeline.confirmDeleteEntry.title')}
+        message={t('timeline.confirmDeleteEntry.message')}
+        confirmText={t('common.delete')}
         danger
         onConfirm={() => deleteMut.mutate(confirmDel.id)}
       />
@@ -574,78 +652,37 @@ function DayEntries({ group, unitLabel, isMovie, onEdit }) {
   )
 }
 
-function EditEntryModal({ entry, work, typeMeta, onClose }) {
-  const queryClient = useQueryClient()
-  const hasRange = typeMeta?.has_range_progress
-  const [start, setStart] = useState(entry.range_start ?? 1)
-  const [end, setEnd] = useState(entry.range_end ?? 1)
-  const [note, setNote] = useState(entry.note || '')
-  const [date, setDate] = useState(entry.date)
-  const update = useMutation({
-    mutationFn: () => api.updateEntry(entry.id, {
-      date,
-      range_start: hasRange ? Number(start) : null,
-      range_end: hasRange ? Number(end) : null,
-      note: note.trim() || null,
-    }),
-    onSuccess: () => { queryClient.invalidateQueries(); onClose() },
-  })
-
-  return (
-    <Modal open={true} onClose={onClose} title="编辑进度记录">
-      <div className="space-y-4">
-        <Field label="日期">
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </Field>
-        {hasRange && (
-          <Field label="进度">
-            <div className="flex items-center gap-2">
-              <input type="number" value={start} min={1}
-                     onChange={(e) => setStart(e.target.value)} className="!w-24" />
-              <span className="text-ink-400">到</span>
-              <input type="number" value={end} min={1}
-                     onChange={(e) => setEnd(e.target.value)} className="!w-24" />
-            </div>
-          </Field>
-        )}
-        <Field label="感想">
-          <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
-        </Field>
-        <div className="flex justify-end gap-2 pt-3 border-t border-paper-200">
-          <Button variant="ghost" onClick={onClose}>取消</Button>
-          <Button variant="primary" onClick={() => update.mutate()} disabled={update.isPending}>
-            保存
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
 function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(work.title)
   const [originalTitle, setOriginalTitle] = useState(work.original_title || '')
   const [description, setDescription] = useState(work.description || '')
   const [releaseStatus, setReleaseStatus] = useState(work.release_status)
   const [totalUnits, setTotalUnits] = useState(work.total_units || '')
+  const [unitLabel, setUnitLabel] = useState(work.unit_label || '')
   const [creators, setCreators] = useState({ ...work.creators })
   const [coverFile, setCoverFile] = useState(null)
   const [pendingFile, setPendingFile] = useState(null)
   const [coverPreview, setCoverPreview] = useState(null)
-  const [tagIds, setTagIds] = useState(work.tags.map(t => t.id))
+  const [tagIds, setTagIds] = useState(work.tags.map(tg => tg.id))
   const [collectionIds, setCollectionIds] = useState(work.collections.map(c => c.id))
 
   const { data: allTags = [] } = useQuery({ queryKey: ['tags'], queryFn: api.listTags })
   const { data: allCollections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
 
+  const unitOptions = typeMeta?.unit_options || []
+  const supportsCustomUnit = unitOptions.length > 0
+
+  const effectiveUnitDisplay = translateUnit(unitLabel || typeMeta?.unit_label || '', t)
+
   const update = useMutation({
     mutationFn: () => api.updateWork(work.id, {
       title, original_title: originalTitle || null,
       description: description || null,
-      // 电影类型固定 finished，其他类型按用户选择
       release_status: isMovie ? 'finished' : releaseStatus,
       total_units: isMovie ? 1 : (totalUnits ? parseInt(totalUnits) : null),
+      unit_label: supportsCustomUnit ? (unitLabel || null) : null,
       creators,
       tag_ids: tagIds,
       collection_ids: collectionIds,
@@ -668,7 +705,7 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
 
   if (pendingFile) {
     return (
-      <Modal open={true} onClose={() => setPendingFile(null)} title="裁剪封面" size="md">
+      <Modal open={true} onClose={() => setPendingFile(null)} title={t('newWork.cropper.title')} size="md">
         <CoverCropper
           file={pendingFile}
           onCancel={() => setPendingFile(null)}
@@ -679,19 +716,19 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
   }
 
   return (
-    <Modal open={true} onClose={onClose} title="编辑作品信息" size="lg">
+    <Modal open={true} onClose={onClose} title={t('workDetail.editTitle')} size="lg">
       <div className="space-y-4">
-        <Field label="标题">
+        <Field label={t('newWork.step2.fieldTitle')}>
           <input value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <Field label="原文标题（可选）">
+        <Field label={t('workDetail.editFieldOriginalTitle')}>
           <input value={originalTitle} onChange={(e) => setOriginalTitle(e.target.value)} />
         </Field>
 
         {typeMeta?.creator_fields?.length > 0 && (
           <div className="grid grid-cols-2 gap-3">
             {typeMeta.creator_fields.map(f => (
-              <Field key={f.key} label={f.label}>
+              <Field key={f.key} label={translateCreatorLabel(f, t)}>
                 <input value={creators[f.key] || ''}
                        onChange={(e) => setCreators(c => ({ ...c, [f.key]: e.target.value }))} />
               </Field>
@@ -699,52 +736,63 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
           </div>
         )}
 
-        <Field label="简介">
+        <Field label={t('workDetail.editFieldDescription')}>
           <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
 
-        {/* 电影类型不显示作品状态/总集数 */}
         {!isMovie && (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="作品状态">
-              <select value={releaseStatus} onChange={(e) => setReleaseStatus(e.target.value)}>
-                <option value="ongoing">连载中</option>
-                <option value="finished">完结</option>
-              </select>
-            </Field>
-            {typeMeta?.has_range_progress && (
-              <Field label={`总${typeMeta.unit_label}数`}>
-                <input type="number" value={totalUnits} onChange={(e) => setTotalUnits(e.target.value)} />
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('newWork.step2.releaseStatus')}>
+                <select value={releaseStatus} onChange={(e) => setReleaseStatus(e.target.value)}>
+                  <option value="ongoing">{translateRelease('ongoing', t)}</option>
+                  <option value="finished">{translateRelease('finished', t)}</option>
+                </select>
+              </Field>
+              {typeMeta?.has_range_progress && (
+                <Field label={t('newWork.step2.totalUnits', { unit: effectiveUnitDisplay })}>
+                  <input type="number" value={totalUnits} onChange={(e) => setTotalUnits(e.target.value)} />
+                </Field>
+              )}
+            </div>
+            {supportsCustomUnit && (
+              <Field label={t('newWork.step2.unitLabel')}>
+                <select value={unitLabel} onChange={(e) => setUnitLabel(e.target.value)} className="!w-32">
+                  <option value="">{t('newWork.step2.unitDefault', { unit: translateUnit(typeMeta.unit_label, t) })}</option>
+                  {unitOptions.map(u => (
+                    <option key={u} value={u}>{translateUnit(u, t)}</option>
+                  ))}
+                </select>
               </Field>
             )}
-          </div>
+          </>
         )}
 
-        <Field label="更换封面">
+        <Field label={t('workDetail.editFieldCover')}>
           <div className="flex items-start gap-3">
             {coverPreview && (
-              <img src={coverPreview} alt="预览"
+              <img src={coverPreview} alt={t('cover.preview')}
                    className="w-20 h-[107px] object-cover rounded border border-paper-200" />
             )}
             <input type="file" accept="image/*" onChange={handleFileSelect} className="flex-1" />
           </div>
         </Field>
 
-        <Field label={`标签（${tagIds.length} 已选）`}>
+        <Field label={t('workDetail.editFieldTagsLabel', { n: tagIds.length })}>
           {allTags.length === 0 ? (
             <div className="text-xs text-ink-400 px-3 py-3 bg-paper-50 rounded border border-paper-200">
-              还没有标签，可以去「设置 → 标签」创建
+              {t('workDetail.editTagsEmpty')}
             </div>
           ) : (
             <div className="bg-paper-50 border border-paper-200 rounded-lg p-3">
               <div className="flex flex-wrap gap-1.5">
-                {allTags.map(t => (
-                  <SelectableTagChip key={t.id} color={t.color}
-                                     selected={tagIds.includes(t.id)}
+                {allTags.map(tg => (
+                  <SelectableTagChip key={tg.id}
+                                     selected={tagIds.includes(tg.id)}
                                      onClick={() => setTagIds(ids =>
-                                       ids.includes(t.id) ? ids.filter(x => x !== t.id) : [...ids, t.id]
+                                       ids.includes(tg.id) ? ids.filter(x => x !== tg.id) : [...ids, tg.id]
                                      )}>
-                    {t.name}
+                    {tg.name}
                   </SelectableTagChip>
                 ))}
               </div>
@@ -752,16 +800,16 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
           )}
         </Field>
 
-        <Field label={`收藏夹（${collectionIds.length} 已选）`}>
+        <Field label={t('workDetail.editFieldCollectionsLabel', { n: collectionIds.length })}>
           {allCollections.length === 0 ? (
             <div className="text-xs text-ink-400 px-3 py-3 bg-paper-50 rounded border border-paper-200">
-              还没有收藏夹，可以去「设置 → 收藏夹」创建
+              {t('workDetail.editCollectionsEmpty')}
             </div>
           ) : (
             <div className="bg-paper-50 border border-paper-200 rounded-lg p-3">
               <div className="flex flex-wrap gap-1.5">
                 {allCollections.map(c => (
-                  <SelectableTagChip key={c.id} color={c.border_color}
+                  <SelectableTagChip key={c.id} color={c.border_color} colored
                                      selected={collectionIds.includes(c.id)}
                                      onClick={() => setCollectionIds(ids =>
                                        ids.includes(c.id) ? ids.filter(x => x !== c.id) : [...ids, c.id]
@@ -775,9 +823,9 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
         </Field>
 
         <div className="flex justify-end gap-2 pt-4 border-t border-paper-200">
-          <Button variant="ghost" onClick={onClose}>取消</Button>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="primary" onClick={() => update.mutate()} disabled={update.isPending}>
-            保存
+            {t('common.save')}
           </Button>
         </div>
       </div>

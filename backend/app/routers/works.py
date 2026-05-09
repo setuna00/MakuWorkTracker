@@ -15,6 +15,69 @@ from datetime import datetime, timezone
 router = APIRouter(prefix="/api/works", tags=["works"])
 
 
+# 高级搜索语法解析：把 q 字符串拆成 ($tag, $favorites, $<creator>, 自由文本) 四类
+# 例: '$tag:剧情 $author:Edge 三体' →
+#     tag=['剧情'], fav=[], creator=[('author', 'Edge')], free=['三体']
+import re
+from pypinyin import lazy_pinyin, Style
+
+_TOKEN_RE = re.compile(r"\$(\w+):([^\s]+)")
+_ASCII_RE = re.compile(r"^[a-zA-Z0-9 ]+$")
+
+
+def _to_pinyin_forms(text: str) -> tuple:
+    """返回 (full_pinyin, first_letters)，例如:
+       '冒险' → ('maoxian', 'mx')
+       'Edge 测试' → ('edge ceshi', 'edge cs')
+    都已 lowercase；非中文字符原样保留。
+    """
+    if not text:
+        return "", ""
+    full = "".join(lazy_pinyin(text)).lower()
+    initials = "".join(lazy_pinyin(text, style=Style.FIRST_LETTER)).lower()
+    return full, initials
+
+
+def _is_ascii_query(s: str) -> bool:
+    """判断查询词是否纯 ASCII（只对纯字母数字查询启用拼音匹配，避免汉字搜索时多余开销）。"""
+    return bool(s) and bool(_ASCII_RE.match(s))
+
+
+def _pinyin_match(haystack: str, needle: str) -> bool:
+    """needle 是已 lowercase 的 ASCII 字串；haystack 是原文（含中文）。
+    检查 needle 是否出现在 haystack 的全拼或首字母形式中。"""
+    full, initials = _to_pinyin_forms(haystack)
+    return needle in full or needle in initials
+
+def _parse_query(q: str):
+    tags: List[str] = []
+    favs: List[str] = []
+    creators: List[tuple] = []
+    free: List[str] = []
+    pos = 0
+    for m in _TOKEN_RE.finditer(q):
+        # 拼接 token 前的散文部分到 free
+        gap = q[pos:m.start()].strip()
+        if gap:
+            free.extend(gap.split())
+        key = m.group(1)
+        val = m.group(2)
+        if not val:
+            pos = m.end(); continue
+        if key == "tag":
+            tags.append(val)
+        elif key == "favorites":
+            favs.append(val)
+        else:
+            # 把 $author: $director: $studio: 等都当 creator key
+            creators.append((key, val))
+        pos = m.end()
+    tail = q[pos:].strip()
+    if tail:
+        free.extend(tail.split())
+    return tags, favs, creators, free
+
+
 def _watching_with_progress(session: Session, w: Watching) -> WatchingRead:
     """把 Watching ORM 转成 schema，并补上 current_progress 和 entries_count。"""
     result = session.exec(
@@ -40,22 +103,77 @@ def list_works(
     session: Session = Depends(get_session),
     type: Optional[WorkType] = None,
     personal_status: Optional[PersonalStatus] = None,  # 按"激活周目=main"的状态筛选
-    tag_id: Optional[int] = None,
-    collection_id: Optional[int] = None,
+    tag_id: Optional[List[int]] = Query(None),  # 多值 AND：作品需同时拥有所有传入 tag
+    collection_id: Optional[int] = Query(None),
     q: Optional[str] = None,
-    sort: str = Query("updated_at", regex="^(updated_at|created_at|title|rating)$"),
+    sort: str = Query("updated_at", regex="^(updated_at|created_at|title|rating|last_progress)$"),
     order: str = Query("desc", regex="^(asc|desc)$"),
 ):
     stmt = select(Work).distinct()
 
+    # ASCII 查询(英文/拼音)统一走 Python 后处理；中文查询走 SQL LIKE
+    pinyin_filters = []  # 形如 ("free", "mao") / ("tag", "mao") / ("creator", "author", "edge")
+
     if type:
         stmt = stmt.where(Work.type == type)
     if q:
-        like = f"%{q}%"
-        stmt = stmt.where((Work.title.like(like)) | (Work.original_title.like(like)))
-    if tag_id is not None:
+        tag_terms, fav_terms, creator_terms, free_terms = _parse_query(q)
+
+        # ---- 自由文本 ----
+        for term in free_terms:
+            if _is_ascii_query(term):
+                pinyin_filters.append(("free", term.lower()))
+            else:
+                like = f"%{term}%"
+                stmt = stmt.where((Work.title.like(like)) | (Work.original_title.like(like)))
+
+        # ---- $tag:X (多个 AND) ----
+        for tname in tag_terms:
+            if _is_ascii_query(tname):
+                pinyin_filters.append(("tag", tname.lower()))
+            else:
+                from ..models import WorkTagLink
+                stmt = stmt.where(
+                    select(func.count(WorkTagLink.tag_id))
+                    .where(WorkTagLink.work_id == Work.id)
+                    .where(WorkTagLink.tag_id.in_(
+                        select(Tag.id).where(Tag.name.like(f"%{tname}%"))
+                    ))
+                    .scalar_subquery() > 0
+                )
+
+        # ---- $favorites:X (多个 AND) ----
+        for cname in fav_terms:
+            from ..models import WorkCollectionLink
+            stmt = stmt.where(
+                select(func.count(WorkCollectionLink.collection_id))
+                .where(WorkCollectionLink.work_id == Work.id)
+                .where(WorkCollectionLink.collection_id.in_(
+                    select(Collection.id).where(Collection.name.like(f"%{cname}%"))
+                ))
+                .scalar_subquery() > 0
+            )
+
+        # ---- $author:X / $director:X 等 creator 字段 ----
+        for ckey, cval in creator_terms:
+            if _is_ascii_query(cval):
+                pinyin_filters.append(("creator", ckey, cval.lower()))
+            else:
+                from sqlalchemy import func as sa_func
+                stmt = stmt.where(
+                    sa_func.lower(sa_func.json_extract(Work.creators, f"$.{ckey}"))
+                    .like(f"%{cval.lower()}%")
+                )
+
+    if tag_id:
+        # AND 语义：用子查询确保 work 的 tag 集合包含所有传入 tag
         from ..models import WorkTagLink
-        stmt = stmt.join(WorkTagLink, WorkTagLink.work_id == Work.id).where(WorkTagLink.tag_id == tag_id)
+        stmt = stmt.where(
+            select(func.count(func.distinct(WorkTagLink.tag_id)))
+            .where(WorkTagLink.work_id == Work.id)
+            .where(WorkTagLink.tag_id.in_(tag_id))
+            .scalar_subquery() == len(set(tag_id))
+        )
     if collection_id is not None:
         from ..models import WorkCollectionLink
         stmt = stmt.join(WorkCollectionLink, WorkCollectionLink.work_id == Work.id).where(
@@ -74,12 +192,77 @@ def list_works(
         # 按 main 周目评分（要 join）
         stmt = stmt.outerjoin(Watching, (Watching.work_id == Work.id) & (Watching.round_number == 1))
         col = Watching.rating
+        stmt = stmt.order_by(col.desc() if order == "desc" else col.asc())
+    elif sort == "last_progress":
+        # 按"最近一条进度记录"排序。
+        # 用 progress.id(自增主键)而不是 date 或 created_at,因为:
+        #   1) date 是用户填的,可能填过去日期,导致刚录入的不排第一
+        #   2) created_at 受时区/种子数据影响:导入备份时 created_at 保留原值,
+        #      可能比新录入(utcnow)更"新",新录入反而排到后面
+        #   3) id 是自增主键,绝对单调:新插入的永远 > 历史所有,语义最贴合"最近在追什么"
+        from ..models import ProgressEntry
+        last_sq = (
+            select(
+                Watching.work_id.label("wid"),
+                func.max(ProgressEntry.id).label("last_pid"),
+            )
+            .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+            .group_by(Watching.work_id)
+            .subquery()
+        )
+        stmt = stmt.outerjoin(last_sq, last_sq.c.wid == Work.id)
+        if order == "desc":
+            stmt = stmt.order_by(
+                last_sq.c.last_pid.desc().nullslast(),
+                Work.updated_at.desc(),
+            )
+        else:
+            stmt = stmt.order_by(
+                last_sq.c.last_pid.asc().nullslast(),
+                Work.updated_at.asc(),
+            )
     else:
         col = getattr(Work, sort)
-    stmt = stmt.order_by(col.desc() if order == "desc" else col.asc())
+        stmt = stmt.order_by(col.desc() if order == "desc" else col.asc())
 
     works = session.exec(stmt).all()
-    return [WorkRead.model_validate(w) for w in works]
+
+    # ---- 拼音 / 英文模糊匹配（SQL 后处理）----
+    # 对于 ASCII 查询，每个 work 都需要满足所有 pinyin_filters（AND）
+    if pinyin_filters:
+        def matches(work: Work) -> bool:
+            for f in pinyin_filters:
+                kind = f[0]
+                if kind == "free":
+                    needle = f[1]
+                    # 命中 title / original_title / 任一 tag 名 / 任一 creator 值 即可
+                    haystacks = [work.title or "", work.original_title or ""]
+                    haystacks += [t.name for t in work.tags]
+                    haystacks += [str(v) for v in (work.creators or {}).values()]
+                    if not any(_pinyin_match(h, needle) for h in haystacks if h):
+                        return False
+                elif kind == "tag":
+                    needle = f[1]
+                    if not any(_pinyin_match(t.name, needle) for t in work.tags):
+                        return False
+                elif kind == "creator":
+                    ckey, needle = f[1], f[2]
+                    val = (work.creators or {}).get(ckey)
+                    if not val or not _pinyin_match(str(val), needle):
+                        return False
+            return True
+
+        works = [w for w in works if matches(w)]
+
+    # 给每个 work 填充 main 周目信息(用于列表页显示进度/评分)
+    out = []
+    for w in works:
+        wr = WorkRead.model_validate(w)
+        main = next((x for x in w.watchings if x.round_number == 1), None)
+        if main is not None:
+            wr.main_watching = _watching_with_progress(session, main)
+        out.append(wr)
+    return out
 
 
 @router.get("/{work_id}", response_model=WorkDetailRead)
@@ -117,6 +300,7 @@ def create_work(
         release_status=data.release_status,
         total_units=data.total_units,
         total_subunits=data.total_subunits,
+        unit_label=data.unit_label,
         creators=data.creators,
     )
 

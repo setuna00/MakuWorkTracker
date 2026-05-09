@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { Plus, Star } from 'lucide-react'
 import { coverUrl } from '../lib/api'
+import { useT } from '../lib/i18n'
 
 export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md' }) {
+  const t = useT()
   const sizeMap = {
     sm: 'w-[120px]',
     md: 'w-[160px]',
@@ -34,7 +36,7 @@ export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md
         </div>
         <div className="text-[11px] text-ink-500 mt-1 flex items-center gap-1.5">
           {progress != null && (
-            <span>{progress}{total ? `/${total}` : ''} {unitLabel}</span>
+            <span>{progress}{total ? `/${total}` : ''}{unitLabel ? ` ${unitLabel}` : ''}</span>
           )}
           {rating != null && (
             <>
@@ -46,7 +48,7 @@ export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md
             </>
           )}
           {progress == null && rating == null && (
-            <span className="text-ink-400">未开始</span>
+            <span className="text-ink-400">{t('card.notStarted')}</span>
           )}
         </div>
       </Link>
@@ -54,7 +56,7 @@ export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md
         <button
           onClick={(e) => { e.preventDefault(); onQuickAdd() }}
           className="absolute top-2 right-2 w-7 h-7 rounded-full bg-brand-600/90 hover:bg-brand-700 text-white flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-          title="快速记录"
+          title={t('card.quickRecord')}
         >
           <Plus size={14} />
         </button>
@@ -67,12 +69,13 @@ export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md
  * 作品库末尾的 + 卡片，跳转新建作品页
  */
 export function EmptyAddCard() {
+  const t = useT()
   return (
     <Link to="/works/new"
           className="block w-full group">
       <div className="aspect-[3/4] rounded-lg border-2 border-dashed border-paper-300 hover:border-brand-500 bg-paper-50 hover:bg-brand-50 flex flex-col items-center justify-center gap-2 text-ink-400 hover:text-brand-600 transition-all mb-2">
         <Plus size={32} strokeWidth={1.5} />
-        <div className="text-xs font-medium">新建作品</div>
+        <div className="text-xs font-medium">{t('card.newWork')}</div>
       </div>
     </Link>
   )

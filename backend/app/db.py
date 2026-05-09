@@ -32,6 +32,24 @@ def init_db() -> None:
     # 必须先 import 所有模型让 SQLModel 注册
     from . import models  # noqa: F401
     SQLModel.metadata.create_all(engine)
+    _run_lightweight_migrations()
+
+
+def _run_lightweight_migrations() -> None:
+    """轻量手动迁移：SQLModel.create_all 不会给已有表加新列。
+    每次启动幂等地补齐这次新增的字段。SQLite 不支持 IF NOT EXISTS COLUMN，
+    所以读出当前列再决定是否 ALTER。
+    """
+    from sqlalchemy import text
+    migrations = [
+        # (table, column, ALTER 语句)
+        ("work", "unit_label", "ALTER TABLE work ADD COLUMN unit_label VARCHAR"),
+    ]
+    with engine.begin() as conn:
+        for table, column, ddl in migrations:
+            cols = [row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))]
+            if column not in cols:
+                conn.execute(text(ddl))
 
 
 def get_session():

@@ -34,6 +34,13 @@ UNIT_LABELS = {
 }
 
 
+# 类型 -> 用户可选的单位列表（None 表示不允许自定义，固定走 UNIT_LABELS）
+UNIT_OPTIONS = {
+    WorkType.manga: ["页", "话", "章", "本"],
+    WorkType.novel: ["页", "话", "章", "本"],
+}
+
+
 # 类型 -> creators 字段定义（key + 中文标签）
 CREATOR_FIELDS = {
     WorkType.anime: [("author", "作者"), ("studio", "制作")],

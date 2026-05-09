@@ -23,6 +23,7 @@ class TagRead(BaseModel):
     name: str
     color: str
     created_at: datetime
+    work_count: int = 0  # 关联作品数（list_tags 接口会填，单条 CRUD 时默认 0）
 
 
 # ---------- Collection ----------
@@ -125,6 +126,7 @@ class WorkCreate(BaseModel):
     release_status: ReleaseStatus = ReleaseStatus.ongoing
     total_units: Optional[int] = None
     total_subunits: Optional[int] = None
+    unit_label: Optional[str] = None
     creators: Dict[str, str] = Field(default_factory=dict)
     tag_ids: List[int] = Field(default_factory=list)
     collection_ids: List[int] = Field(default_factory=list)
@@ -139,6 +141,7 @@ class WorkUpdate(BaseModel):
     release_status: Optional[ReleaseStatus] = None
     total_units: Optional[int] = None
     total_subunits: Optional[int] = None
+    unit_label: Optional[str] = None
     creators: Optional[Dict[str, str]] = None
     tag_ids: Optional[List[int]] = None
     collection_ids: Optional[List[int]] = None
@@ -156,11 +159,14 @@ class WorkRead(BaseModel):
     release_status: ReleaseStatus
     total_units: Optional[int]
     total_subunits: Optional[int]
+    unit_label: Optional[str] = None
     creators: Dict
     created_at: datetime
     updated_at: datetime
     tags: List[TagRead] = []
     collections: List[CollectionRead] = []
+    # main 周目（round_number=1）的概要,用于列表页直接显示进度/评分
+    main_watching: Optional[WatchingRead] = None
 
 
 class WorkDetailRead(WorkRead):
@@ -175,6 +181,7 @@ class TimelineDayItem(BaseModel):
     work_id: int
     work_title: str
     work_type: WorkType
+    work_unit_label: Optional[str] = None  # work 自定义单位（漫画/小说），用于前端覆盖默认
     work_cover_thumb: Optional[str]
     watching_id: int
     round_number: int

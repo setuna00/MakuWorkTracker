@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Search, ChevronLeft } from 'lucide-react'
 import { api, coverUrl, localToday } from '../lib/api'
+import { useT, translateType, translateUnit, useLocaleStore } from '../lib/i18n'
 import { Button } from '../components/Modal'
 
 export default function QuickRecordPage() {
+  const t = useT()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -29,8 +31,10 @@ export default function QuickRecordPage() {
     enabled: !!selectedWorkId,
   })
 
-  const getUnitLabel = (type) =>
-    typesMeta.types?.find(t => t.value === type)?.unit_label || '集'
+  const getUnitLabel = (type) => {
+    const raw = typesMeta.types?.find(ty => ty.value === type)?.unit_label || '集'
+    return translateUnit(raw, t)
+  }
 
   if (selectedWorkId && selectedWork) {
     return (
@@ -49,15 +53,15 @@ export default function QuickRecordPage() {
 
   return (
     <div className="max-w-[1100px] mx-auto">
-      <h1 className="text-2xl font-semibold mb-1">快速记录</h1>
-      <div className="text-sm text-ink-500 mb-5">先选一个作品</div>
+      <h1 className="text-2xl font-semibold mb-1">{t('quickRecord.title')}</h1>
+      <div className="text-sm text-ink-500 mb-5">{t('quickRecord.pickWork')}</div>
 
       <div className="relative mb-6">
         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
         <input
           type="search"
           autoFocus
-          placeholder="搜索作品..."
+          placeholder={t('quickRecord.searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="!pl-10"
@@ -66,7 +70,7 @@ export default function QuickRecordPage() {
 
       {results.length === 0 ? (
         <div className="text-center py-16 text-ink-400 text-sm border border-dashed border-paper-200 rounded-lg">
-          {query ? '没有匹配的作品' : '还没有作品'}
+          {query ? t('quickRecord.noMatch') : t('quickRecord.noWorks')}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -88,7 +92,7 @@ export default function QuickRecordPage() {
                   {w.title}
                 </div>
                 <div className="text-[11px] text-ink-500 mt-1">
-                  {typesMeta.types?.find(t => t.value === w.type)?.label}
+                  {translateType(w.type, t)}
                   {w.original_title && <span className="ml-1.5 text-ink-400">· {w.original_title}</span>}
                 </div>
               </div>
@@ -101,7 +105,9 @@ export default function QuickRecordPage() {
 }
 
 function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
-  const typeMeta = typesMeta?.find(t => t.value === work.type)
+  const t = useT()
+  const locale = useLocaleStore(s => s.locale)
+  const typeMeta = typesMeta?.find(ty => ty.value === work.type)
   const hasRange = typeMeta?.has_range_progress
 
   const sortedWatchings = [...work.watchings].sort((a, b) => a.round_number - b.round_number)
@@ -131,7 +137,7 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
       note: note.trim() || null,
     }),
     onSuccess: () => onDone(),
-    onError: (e) => setError(e.message || '记录失败'),
+    onError: (e) => setError(e.message || t('quickRecord.recordFailed')),
   })
 
   const handleSubmit = (e) => {
@@ -140,18 +146,23 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
     if (hasRange) {
       const s = Number(start), ed = Number(end)
       if (!s || !ed || s < 1 || ed < s) {
-        setError('请输入有效的进度区间')
+        setError(t('quickRecord.invalidRange'))
         return
       }
     }
     submit.mutate()
   }
 
+  const progressLabel = currentMax > 0
+    ? t('quickRecord.progressCurrent', { unit: unitLabel, n: currentMax })
+    : t('quickRecord.progress', { unit: unitLabel })
+  const toLabel = locale === 'en' ? '–' : '到'
+
   return (
     <div className="max-w-2xl mx-auto">
       <button onClick={onBack}
               className="text-sm text-ink-500 hover:text-brand-700 flex items-center gap-1 mb-4 transition-colors">
-        <ChevronLeft size={14} /> 重新选择作品
+        <ChevronLeft size={14} /> {t('quickRecord.reSelect')}
       </button>
 
       <div className="card p-5 mb-5 flex items-start gap-4">
@@ -162,7 +173,7 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
           )}
         </div>
         <div>
-          <div className="text-[11px] text-brand-600 font-medium uppercase mb-1">{typeMeta?.label}</div>
+          <div className="text-[11px] text-brand-600 font-medium uppercase mb-1">{translateType(work.type, t)}</div>
           <h1 className="text-lg font-semibold leading-tight">{work.title}</h1>
           {work.original_title && (
             <div className="text-sm text-ink-500 mt-0.5">{work.original_title}</div>
@@ -172,36 +183,36 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
 
       <form onSubmit={handleSubmit} className="card p-5 space-y-4">
         {sortedWatchings.length > 1 && (
-          <Field label="记录到哪个周目">
+          <Field label={t('quickRecord.toRound')}>
             <select value={watchingId} onChange={(e) => handleWatchingChange(e.target.value)}>
               {sortedWatchings.map(w => (
                 <option key={w.id} value={w.id}>
-                  {w.label || `第 ${w.round_number} 周目`}
+                  {w.label || t('workDetail.round', { n: w.round_number })}
                 </option>
               ))}
             </select>
           </Field>
         )}
 
-        <Field label="日期">
+        <Field label={t('quickRecord.date')}>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
 
         {hasRange && (
-          <Field label={`进度（${unitLabel}）${currentMax > 0 ? ` · 当前 ${currentMax}` : ''}`}>
+          <Field label={progressLabel}>
             <div className="flex items-center gap-2">
               <input type="number" value={start} min={1}
                      onChange={(e) => setStart(e.target.value)} className="!w-28" />
-              <span className="text-ink-400">到</span>
+              <span className="text-ink-400">{toLabel}</span>
               <input type="number" value={end} min={1}
                      onChange={(e) => setEnd(e.target.value)} className="!w-28" />
             </div>
           </Field>
         )}
 
-        <Field label="感想（可选）">
+        <Field label={t('quickRecord.note')}>
           <textarea rows={4} value={note} onChange={(e) => setNote(e.target.value)}
-                    placeholder="本次的想法..." />
+                    placeholder={t('quickRecord.notePlaceholder')} />
         </Field>
 
         {error && (
@@ -211,9 +222,9 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
         )}
 
         <div className="flex justify-end gap-2 pt-2 border-t border-paper-200">
-          <Button type="button" variant="ghost" onClick={onBack}>取消</Button>
+          <Button type="button" variant="ghost" onClick={onBack}>{t('common.cancel')}</Button>
           <Button type="submit" variant="primary" disabled={submit.isPending}>
-            {submit.isPending ? '记录中...' : '记录'}
+            {submit.isPending ? t('common.recording') : t('quickRecord.submit')}
           </Button>
         </div>
       </form>

@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 from ..models.enums import (
     WorkType, ReleaseStatus, PersonalStatus,
-    UNIT_LABELS, CREATOR_FIELDS, TYPES_WITH_RANGE_PROGRESS,
+    UNIT_LABELS, UNIT_OPTIONS, CREATOR_FIELDS, TYPES_WITH_RANGE_PROGRESS,
 )
 
 router = APIRouter(prefix="/api/meta", tags=["meta"])
@@ -28,6 +28,7 @@ def get_types_meta():
             "label": cfg["label"],
             "icon": cfg["icon"],
             "unit_label": UNIT_LABELS[t],
+            "unit_options": UNIT_OPTIONS.get(t, []),  # 空数组=该类型不支持自定义单位
             "has_range_progress": t in TYPES_WITH_RANGE_PROGRESS,
             "creator_fields": [
                 {"key": k, "label": lbl} for k, lbl in CREATOR_FIELDS[t]

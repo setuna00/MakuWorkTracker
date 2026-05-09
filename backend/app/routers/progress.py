@@ -97,6 +97,14 @@ def create_entry(
     return ProgressEntryRead.model_validate(entry)
 
 
+@router.get("/api/entries/{entry_id}", response_model=ProgressEntryRead)
+def get_entry(entry_id: int, session: Session = Depends(get_session)):
+    entry = session.get(ProgressEntry, entry_id)
+    if not entry:
+        raise HTTPException(404, "Entry not found")
+    return ProgressEntryRead.model_validate(entry)
+
+
 @router.patch("/api/entries/{entry_id}", response_model=ProgressEntryRead)
 def update_entry(
     entry_id: int,
