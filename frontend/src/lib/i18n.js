@@ -100,6 +100,8 @@ const zh = {
   'library.filter.tags': '标签',
   'library.filter.tagsSelected': '标签 (已选 {n}, 同时满足)',
   'library.filter.clearAll': '清除所有筛选',
+  'library.filter.activeMonth': '本月活跃作品（{month}）',
+  'library.filter.newMonth': '本月新开作品（{month}）',
 
   // Favorites page (mobile-only entry)
   'favorites.title': '收藏夹',
@@ -413,6 +415,8 @@ const en = {
   'library.filter.tags': 'Tags',
   'library.filter.tagsSelected': 'Tags ({n} selected, AND)',
   'library.filter.clearAll': 'Clear all filters',
+  'library.filter.activeMonth': 'Active works ({month})',
+  'library.filter.newMonth': 'New works ({month})',
 
   // Favorites page
   'favorites.title': 'Favorites',

@@ -109,6 +109,8 @@ def list_works(
     q: Optional[str] = None,
     sort: str = Query("updated_at", regex="^(updated_at|created_at|title|rating|last_progress)$"),
     order: str = Query("desc", regex="^(asc|desc)$"),
+    active_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
+    new_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
 ):
     stmt = select(Work).distinct()
 
@@ -181,6 +183,53 @@ def list_works(
             WorkCollectionLink.collection_id == collection_id
         )
 
+    if active_month or new_month:
+        from datetime import date as _date
+        target = active_month or new_month
+        year = int(target[:4])
+        month = int(target[5:7])
+        if month == 12:
+            ny, nm = year + 1, 1
+        else:
+            ny, nm = year, month + 1
+        month_start = _date(year, month, 1)
+        month_end = _date(ny, nm, 1)
+
+        if active_month:
+            # 该月有任何进度记录的作品
+            active_subq = (
+                select(Watching.work_id)
+                .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+                .where(
+                    ProgressEntry.date >= month_start,
+                    ProgressEntry.date < month_end,
+                )
+                .distinct()
+                .subquery()
+            )
+            stmt = stmt.where(Work.id.in_(select(active_subq.c.work_id)))
+
+        if new_month:
+            # 该作品的"最早一条进度记录"落在该月
+            first_subq = (
+                select(
+                    Watching.work_id.label("wid"),
+                    func.min(ProgressEntry.date).label("first_date"),
+                )
+                .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+                .group_by(Watching.work_id)
+                .subquery()
+            )
+            new_filtered_subq = (
+                select(first_subq.c.wid)
+                .where(
+                    first_subq.c.first_date >= month_start,
+                    first_subq.c.first_date < month_end,
+                )
+                .subquery()
+            )
+            stmt = stmt.where(Work.id.in_(select(new_filtered_subq.c.wid)))
+
     if personal_status is not None:
         # 按 main 周目（round_number=1）的状态筛选
         stmt = stmt.join(Watching, Watching.work_id == Work.id).where(
@@ -201,7 +250,6 @@ def list_works(
         #   2) created_at 受时区/种子数据影响:导入备份时 created_at 保留原值,
         #      可能比新录入(utcnow)更"新",新录入反而排到后面
         #   3) id 是自增主键,绝对单调:新插入的永远 > 历史所有,语义最贴合"最近在追什么"
-        from ..models import ProgressEntry
         last_sq = (
             select(
                 Watching.work_id.label("wid"),

@@ -68,6 +68,8 @@ export default function HomePage() {
     queryFn: () => api.getRecentActivity(7, 10),
   })
 
+  const monthQuery = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
   const { data: workForRecord } = useQuery({
     queryKey: ['work', recordingWork?.id],
     queryFn: () => api.getWork(recordingWork.id),
@@ -148,8 +150,8 @@ export default function HomePage() {
         <div className="card p-6">
           <div className="grid grid-cols-3 divide-x divide-paper-200">
             <StatBlock label={t('home.stat.entries')} value={monthly?.entries_count ?? '-'} unit={t('home.stat.unitEntries')} />
-            <StatBlock label={t('home.stat.activeWorks')} value={monthly?.active_works ?? '-'} unit={t('home.stat.unitWorks')} />
-            <StatBlock label={t('home.stat.newWorks')} value={monthly?.new_works ?? '-'} unit={t('home.stat.unitWorks')} />
+            <StatBlock label={t('home.stat.activeWorks')} value={monthly?.active_works ?? '-'} unit={t('home.stat.unitWorks')} href={`/library?active=${monthQuery}`} />
+            <StatBlock label={t('home.stat.newWorks')} value={monthly?.new_works ?? '-'} unit={t('home.stat.unitWorks')} href={`/library?new=${monthQuery}`} />
           </div>
         </div>
       </Section>
@@ -216,14 +218,27 @@ function Section({ title, action, children }) {
   )
 }
 
-function StatBlock({ label, value, unit }) {
-  return (
-    <div className="px-4 first:pl-0 last:pr-0">
+function StatBlock({ label, value, unit, href }) {
+  const inner = (
+    <>
       <div className="text-xs text-ink-500 mb-1.5">{label}</div>
       <div className="flex items-baseline gap-1.5">
         <span className="text-3xl font-semibold tabular-nums text-brand-600">{value}</span>
         {unit && <span className="text-xs text-ink-500">{unit}</span>}
       </div>
+    </>
+  )
+  if (href) {
+    return (
+      <Link to={href}
+            className="px-4 first:pl-0 last:pr-0 block hover:bg-paper-50 rounded transition-colors -my-1 py-1">
+        {inner}
+      </Link>
+    )
+  }
+  return (
+    <div className="px-4 first:pl-0 last:pr-0">
+      {inner}
     </div>
   )
 }

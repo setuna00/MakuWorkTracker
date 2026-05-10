@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Filter, X, ArrowUp, ArrowDown } from 'lucide-react'
 import { api } from '../lib/api'
@@ -41,6 +41,8 @@ export default function LibraryPage() {
     q: searchParams.get('q') || '',
     sort: searchParams.get('sort') || 'updated_at',
     order: searchParams.get('order') || 'desc',
+    active_month: searchParams.get('active') || '',
+    new_month: searchParams.get('new') || '',
   }
 
   const setFilter = (key, value) => {
@@ -186,6 +188,17 @@ export default function LibraryPage() {
               <X size={11} /> {t('library.filter.clearAll')}
             </button>
           )}
+        </div>
+      )}
+
+      {(filters.active_month || filters.new_month) && (
+        <div className="mb-4 px-3 py-2 bg-brand-50 border border-brand-200 rounded text-sm text-brand-700 flex items-center justify-between">
+          <span>
+            {filters.active_month
+              ? t('library.filter.activeMonth', { month: filters.active_month })
+              : t('library.filter.newMonth', { month: filters.new_month })}
+          </span>
+          <Link to="/library" className="text-xs text-brand-600 hover:underline">{t('common.clear')}</Link>
         </div>
       )}
 
