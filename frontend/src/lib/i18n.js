@@ -66,6 +66,8 @@ const zh = {
   'common.next': '下一步',
   'common.prev': '← 上一步',
   'common.clear': '清除',
+  'common.sortAsc': '升序',
+  'common.sortDesc': '降序',
 
   // Home
   'home.watching': '在看中 · {count}',
@@ -90,8 +92,9 @@ const zh = {
   'library.searchSuffix': '· 搜索 "{q}"',
   'library.sort.updated': '最近更新',
   'library.sort.created': '最近创建',
-  'library.sort.titleAsc': '标题 A-Z',
-  'library.sort.ratingDesc': '评分降序',
+  'library.sort.title': '标题',
+  'library.sort.rating': '评分',
+  'library.sort.lastProgress': '最近进度',
   'library.filter': '筛选',
   'library.filter.personalStatus': '个人状态',
   'library.filter.tags': '标签',
@@ -376,6 +379,8 @@ const en = {
   'common.next': 'Next',
   'common.prev': '← Back',
   'common.clear': 'Clear',
+  'common.sortAsc': 'Ascending',
+  'common.sortDesc': 'Descending',
 
   // Home
   'home.watching': 'Now Watching · {count}',
@@ -400,8 +405,9 @@ const en = {
   'library.searchSuffix': '· searching "{q}"',
   'library.sort.updated': 'Recently updated',
   'library.sort.created': 'Recently created',
-  'library.sort.titleAsc': 'Title A-Z',
-  'library.sort.ratingDesc': 'Rating ↓',
+  'library.sort.title': 'Title',
+  'library.sort.rating': 'Rating',
+  'library.sort.lastProgress': 'Last progress',
   'library.filter': 'Filter',
   'library.filter.personalStatus': 'Status',
   'library.filter.tags': 'Tags',

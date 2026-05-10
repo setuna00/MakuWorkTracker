@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Filter, X } from 'lucide-react'
+import { Filter, X, ArrowUp, ArrowDown } from 'lucide-react'
 import { api } from '../lib/api'
 import { resolveUnitLabel } from '../lib/format'
 import { useT, translateType, translateStatus, translateUnit } from '../lib/i18n'
@@ -113,18 +113,23 @@ export default function LibraryPage() {
           {filters.q && <span className="ml-2">{t('library.searchSuffix', { q: filters.q })}</span>}
         </div>
         <div className="flex items-center gap-2">
-          <select value={`${filters.sort}:${filters.order}`}
-                  onChange={(e) => {
-                    const [sort, order] = e.target.value.split(':')
-                    setFilter('sort', sort)
-                    setFilter('order', order)
-                  }}
+          <select value={filters.sort}
+                  onChange={(e) => setFilter('sort', e.target.value)}
                   className="!w-auto input-compact">
-            <option value="updated_at:desc">{t('library.sort.updated')}</option>
-            <option value="created_at:desc">{t('library.sort.created')}</option>
-            <option value="title:asc">{t('library.sort.titleAsc')}</option>
-            <option value="rating:desc">{t('library.sort.ratingDesc')}</option>
+            <option value="updated_at">{t('library.sort.updated')}</option>
+            <option value="created_at">{t('library.sort.created')}</option>
+            <option value="title">{t('library.sort.title')}</option>
+            <option value="rating">{t('library.sort.rating')}</option>
+            <option value="last_progress">{t('library.sort.lastProgress')}</option>
           </select>
+          <button
+            onClick={() => setFilter('order', filters.order === 'desc' ? 'asc' : 'desc')}
+            className="p-1.5 rounded-md border border-paper-300 hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+            title={filters.order === 'desc' ? t('common.sortDesc') : t('common.sortAsc')}
+            aria-label={filters.order === 'desc' ? t('common.sortDesc') : t('common.sortAsc')}
+          >
+            {filters.order === 'desc' ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
+          </button>
           <button onClick={() => setFilterOpen(o => !o)}
                   className={`px-3 py-1.5 rounded-md text-xs border flex items-center gap-1 transition-colors ${
                     filterOpen || activeFilterCount > 0
