@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Edit2, Save, Download, ArrowUp, ArrowDown, Check } from 'lucide-react'
 import { api } from '../lib/api'
 import { useT, useLocaleStore, SUPPORTED_LOCALES } from '../lib/i18n'
-import { Button, ConfirmDialog } from '../components/Modal'
+import { Button, ConfirmDialog, Modal } from '../components/Modal'
 import { TagChip } from '../components/TagChip'
 
 export default function SettingsPage() {
@@ -51,98 +51,424 @@ function TagsSection() {
   const t = useT()
   const queryClient = useQueryClient()
   const { data: tags = [] } = useQuery({ queryKey: ['tags'], queryFn: api.listTags })
-  const [newName, setNewName] = useState('')
-  const [editing, setEditing] = useState(null)
-  const [confirmDel, setConfirmDel] = useState(null)
+  const { data: groups = [] } = useQuery({ queryKey: ['tagGroups'], queryFn: api.listTagGroups })
 
-  const create = useMutation({
-    mutationFn: () => api.createTag({ name: newName.trim() }),
+  const [newGroupName, setNewGroupName] = useState('')
+  const [editingGroupId, setEditingGroupId] = useState(null)
+  const [editingGroupName, setEditingGroupName] = useState('')
+  const [confirmDelGroup, setConfirmDelGroup] = useState(null)
+  const [bannerDismissed, setBannerDismissed] = useState(
+    () => localStorage.getItem('tagGroups.upgradeBannerDismissed') === '1'
+  )
+  const [editingTag, setEditingTag] = useState(null)
+  const [editTagError, setEditTagError] = useState('')
+  const [confirmDelTag, setConfirmDelTag] = useState(null)
+  const [newTagInputs, setNewTagInputs] = useState({})
+
+  const tagCountByGroup = {}
+  for (const tg of tags) {
+    if (tg.group_id != null) {
+      tagCountByGroup[tg.group_id] = (tagCountByGroup[tg.group_id] || 0) + 1
+    }
+  }
+
+  const tagsByGroup = {}
+  for (const tg of tags) {
+    const gid = tg.group_id
+    if (gid == null) continue
+    if (!tagsByGroup[gid]) tagsByGroup[gid] = []
+    tagsByGroup[gid].push(tg)
+  }
+  for (const gid in tagsByGroup) {
+    tagsByGroup[gid].sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  const aliasStringToArray = (s) =>
+    (s || '').split(',').map(x => x.trim()).filter(Boolean)
+
+  const aliasArrayToString = (arr) =>
+    (arr || []).join(', ')
+
+  const createGroup = useMutation({
+    mutationFn: () => api.createTagGroup({ name: newGroupName.trim() }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tags'] })
-      setNewName('')
+      queryClient.invalidateQueries({ queryKey: ['tagGroups'] })
+      setNewGroupName('')
     },
   })
-  const update = useMutation({
+
+  const updateGroup = useMutation({
+    mutationFn: ({ id, data }) => api.updateTagGroup(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tagGroups'] })
+      setEditingGroupId(null)
+      setEditingGroupName('')
+    },
+  })
+
+  const removeGroup = useMutation({
+    mutationFn: (id) => api.deleteTagGroup(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tagGroups'] })
+      queryClient.invalidateQueries({ queryKey: ['tags'] })
+      setConfirmDelGroup(null)
+    },
+  })
+
+  const reorderGroups = useMutation({
+    mutationFn: (orderedIds) => api.reorderTagGroups(orderedIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tagGroups'] })
+    },
+  })
+
+  const createTag = useMutation({
+    mutationFn: ({ name, group_id }) => api.createTag({ name, group_id }),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['tags'] })
+      setNewTagInputs(s => ({ ...s, [vars.group_id]: '' }))
+    },
+  })
+
+  const updateTag = useMutation({
     mutationFn: ({ id, data }) => api.updateTag(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] })
-      setEditing(null)
+      setEditingTag(null)
+      setEditTagError('')
+    },
+    onError: (err) => {
+      const msg = String(err.message || '')
+      let detail = msg
+      const m = msg.match(/^\d+:\s*(.+)$/s)
+      if (m) {
+        try {
+          const parsed = JSON.parse(m[1])
+          detail = parsed.detail || m[1]
+        } catch {
+          detail = m[1]
+        }
+      }
+      setEditTagError(detail)
     },
   })
-  const remove = useMutation({
+
+  const removeTag = useMutation({
     mutationFn: (id) => api.deleteTag(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tags'] }); setConfirmDel(null) },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags'] })
+      setConfirmDelTag(null)
+    },
   })
+
+  const moveGroup = (idx, dir) => {
+    const target = idx + dir
+    if (target < 0 || target >= groups.length) return
+    const newOrder = [...groups]
+    ;[newOrder[idx], newOrder[target]] = [newOrder[target], newOrder[idx]]
+    reorderGroups.mutate(newOrder.map(g => g.id))
+  }
+
+  const atMaxGroups = groups.length >= 5
+  const isDefault = (g) => g.is_default === true
 
   return (
     <div className="space-y-5">
+      {!bannerDismissed && (
+        <div className="card p-4 bg-blue-50 border border-blue-200 flex items-start gap-3">
+          <div className="flex-1 text-sm text-blue-900">
+            {t('settings.tagGroups.upgradeBanner')}
+          </div>
+          <button
+            onClick={() => {
+              localStorage.setItem('tagGroups.upgradeBannerDismissed', '1')
+              setBannerDismissed(true)
+            }}
+            className="text-sm text-blue-700 font-medium px-2 py-1 hover:bg-blue-100 rounded"
+          >
+            {t('settings.tagGroups.upgradeBannerDismiss')}
+          </button>
+        </div>
+      )}
+
       <div className="card p-5">
-        <div className="text-sm font-medium mb-3 text-ink-700">{t('settings.tags.new')}</div>
+        <div className="text-sm font-medium mb-3 text-ink-700">{t('settings.tagGroups.new')}</div>
         <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-          <input type="text" placeholder={t('settings.tags.namePlaceholder')} value={newName}
-                 onChange={(e) => setNewName(e.target.value)}
-                 onKeyDown={(e) => e.key === 'Enter' && newName.trim() && create.mutate()} />
-          <Button variant="primary" onClick={() => newName.trim() && create.mutate()}
-                  disabled={!newName.trim() || create.isPending}>
+          <input
+            type="text"
+            placeholder={t('settings.tagGroups.namePlaceholder')}
+            value={newGroupName}
+            onChange={(e) => setNewGroupName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && newGroupName.trim() && !atMaxGroups && createGroup.mutate()}
+            disabled={atMaxGroups}
+          />
+          <Button
+            variant="primary"
+            onClick={() => newGroupName.trim() && !atMaxGroups && createGroup.mutate()}
+            disabled={!newGroupName.trim() || createGroup.isPending || atMaxGroups}
+          >
             <Plus size={14} /> {t('common.add')}
           </Button>
         </div>
+        {atMaxGroups && (
+          <div className="text-xs text-ink-500 mt-2">{t('settings.tagGroups.maxHint')}</div>
+        )}
       </div>
 
-      <div className="card divide-y divide-paper-200 overflow-hidden">
-        {tags.length === 0 && (
-          <div className="text-center py-10 text-sm text-ink-400">{t('settings.tags.empty')}</div>
-        )}
-        {tags.map(tg => (
-          <div key={tg.id} className="flex items-center gap-3 px-4 py-3 hover:bg-paper-50 group">
-            {editing?.id === tg.id ? (
+      {groups.length === 0 && (
+        <div className="card text-center py-10 text-sm text-ink-400">
+          {t('settings.tagGroups.empty')}
+        </div>
+      )}
+
+      {groups.map((g, idx) => (
+        <div key={g.id} className="card overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-paper-200 bg-paper-50">
+            {editingGroupId === g.id ? (
               <>
-                <input type="text" value={editing.name}
-                       onChange={(e) => setEditing(s => ({ ...s, name: e.target.value }))}
-                       className="flex-1 input-compact" />
-                <Button variant="primary"
-                        onClick={() => update.mutate({ id: tg.id, data: { name: editing.name } })}>
+                <input
+                  type="text"
+                  value={editingGroupName}
+                  onChange={(e) => setEditingGroupName(e.target.value)}
+                  className="flex-1 input-compact"
+                  autoFocus
+                />
+                <Button
+                  variant="primary"
+                  onClick={() => editingGroupName.trim() &&
+                    updateGroup.mutate({ id: g.id, data: { name: editingGroupName.trim() } })}
+                >
                   <Save size={13} /> {t('common.save')}
                 </Button>
-                <Button variant="ghost" onClick={() => setEditing(null)}>{t('common.cancel')}</Button>
+                <Button variant="ghost" onClick={() => { setEditingGroupId(null); setEditingGroupName('') }}>
+                  {t('common.cancel')}
+                </Button>
               </>
             ) : (
               <>
-                <TagChip color={tg.color}>{tg.name}</TagChip>
+                <span className="text-sm font-medium">{g.name}</span>
+                {isDefault(g) && (
+                  <span className="text-xs px-2 py-0.5 bg-paper-200 text-ink-600 rounded">
+                    {t('settings.tagGroups.defaultBadge')}
+                  </span>
+                )}
+                <span className="text-xs text-ink-500">
+                  {t('settings.tagGroups.tagsCount', { count: tagCountByGroup[g.id] || 0 })}
+                </span>
                 <span className="flex-1" />
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => setEditing({ id: tg.id, name: tg.name })}
-                          className="p-2 hover:bg-paper-200 rounded-md text-ink-700">
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => moveGroup(idx, -1)}
+                    disabled={idx === 0}
+                    title={t('settings.tagGroups.moveUp')}
+                    className="p-2 hover:bg-paper-200 rounded-md text-ink-700 disabled:opacity-30"
+                  >
+                    <ArrowUp size={13} />
+                  </button>
+                  <button
+                    onClick={() => moveGroup(idx, 1)}
+                    disabled={idx === groups.length - 1}
+                    title={t('settings.tagGroups.moveDown')}
+                    className="p-2 hover:bg-paper-200 rounded-md text-ink-700 disabled:opacity-30"
+                  >
+                    <ArrowDown size={13} />
+                  </button>
+                  <button
+                    onClick={() => { setEditingGroupId(g.id); setEditingGroupName(g.name) }}
+                    title={t('settings.tagGroups.rename')}
+                    className="p-2 hover:bg-paper-200 rounded-md text-ink-700"
+                  >
                     <Edit2 size={13} />
                   </button>
-                  <button onClick={() => setConfirmDel(tg)}
-                          className="p-2 hover:bg-red-50 text-red-600 rounded-md">
+                  <button
+                    onClick={() => !isDefault(g) && setConfirmDelGroup(g)}
+                    disabled={isDefault(g)}
+                    title={isDefault(g) ? t('settings.tagGroups.cantDeleteDefault') : t('common.delete')}
+                    className="p-2 hover:bg-red-50 text-red-600 rounded-md disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
                     <Trash2 size={13} />
                   </button>
                 </div>
               </>
             )}
           </div>
-        ))}
-      </div>
+
+          <div className="divide-y divide-paper-200">
+            {(tagsByGroup[g.id] || []).length === 0 && (
+              <div className="px-4 py-3 text-sm text-ink-400">{t('settings.tags.empty')}</div>
+            )}
+            {(tagsByGroup[g.id] || []).map(tg => (
+              <div key={tg.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-paper-50 group/row">
+                <TagChip>{tg.name}</TagChip>
+                {tg.aliases && tg.aliases.length > 0 && (
+                  <span className="text-xs text-ink-400 truncate" title={tg.aliases.join(', ')}>
+                    ({tg.aliases.join(', ')})
+                  </span>
+                )}
+                <span className="flex-1" />
+                <div className="flex gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => {
+                      setEditTagError('')
+                      setEditingTag({
+                        id: tg.id,
+                        name: tg.name,
+                        group_id: tg.group_id,
+                        aliases: aliasArrayToString(tg.aliases),
+                      })
+                    }}
+                    className="p-1.5 hover:bg-paper-200 rounded-md text-ink-700"
+                  >
+                    <Edit2 size={12} />
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelTag(tg)}
+                    className="p-1.5 hover:bg-red-50 text-red-600 rounded-md"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-paper-50/50">
+              <input
+                type="text"
+                placeholder={t('settings.tags.namePlaceholder')}
+                value={newTagInputs[g.id] || ''}
+                onChange={(e) => setNewTagInputs(s => ({ ...s, [g.id]: e.target.value }))}
+                onKeyDown={(e) => {
+                  const v = (newTagInputs[g.id] || '').trim()
+                  if (e.key === 'Enter' && v) {
+                    createTag.mutate({ name: v, group_id: g.id })
+                  }
+                }}
+                className="flex-1 input-compact"
+              />
+              <button
+                onClick={() => {
+                  const v = (newTagInputs[g.id] || '').trim()
+                  if (v) createTag.mutate({ name: v, group_id: g.id })
+                }}
+                disabled={!(newTagInputs[g.id] || '').trim() || createTag.isPending}
+                className="text-xs text-brand-700 hover:text-brand-900 px-2 py-1 disabled:opacity-30"
+              >
+                <Plus size={12} className="inline" /> {t('common.add')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <Modal
+        open={!!editingTag}
+        onClose={() => { setEditingTag(null); setEditTagError('') }}
+        title={editingTag ? t('common.edit') + ' ' + editingTag.name : ''}
+      >
+        {editingTag && (
+          <div className="space-y-4">
+            {editTagError && (
+              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
+                {editTagError}
+              </div>
+            )}
+
+            <div>
+              <input
+                type="text"
+                placeholder={t('settings.tags.namePlaceholder')}
+                value={editingTag.name}
+                onChange={(e) => setEditingTag(s => ({ ...s, name: e.target.value }))}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-ink-700 mb-1.5">
+                {t('settings.tags.groupLabel')}
+              </label>
+              <select
+                value={editingTag.group_id}
+                onChange={(e) => setEditingTag(s => ({ ...s, group_id: parseInt(e.target.value, 10) }))}
+                className="w-full"
+              >
+                {groups.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-ink-700 mb-1.5">
+                {t('settings.tags.aliases.label')}
+              </label>
+              <input
+                type="text"
+                placeholder={t('settings.tags.aliases.placeholder')}
+                value={editingTag.aliases}
+                onChange={(e) => setEditingTag(s => ({ ...s, aliases: e.target.value }))}
+              />
+              <div className="text-xs text-ink-500 mt-1">{t('settings.tags.aliases.hint')}</div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => { setEditingTag(null); setEditTagError('') }}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!editingTag.name.trim() || updateTag.isPending}
+                onClick={() => {
+                  setEditTagError('')
+                  updateTag.mutate({
+                    id: editingTag.id,
+                    data: {
+                      name: editingTag.name.trim(),
+                      group_id: editingTag.group_id,
+                      aliases: aliasStringToArray(editingTag.aliases),
+                    },
+                  })
+                }}
+              >
+                <Save size={13} /> {t('common.save')}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <ConfirmDialog
-        open={!!confirmDel}
-        onClose={() => setConfirmDel(null)}
+        open={!!confirmDelGroup}
+        onClose={() => setConfirmDelGroup(null)}
+        title={t('settings.tagGroups.confirmDelete.title')}
+        message={
+          <>
+            {t('settings.tagGroups.confirmDelete.body', { name: confirmDelGroup?.name })}
+            <span className="block text-ink-500 mt-1">{t('settings.tagGroups.confirmDelete.note')}</span>
+          </>
+        }
+        confirmText={t('common.delete')}
+        danger
+        onConfirm={() => removeGroup.mutate(confirmDelGroup.id)}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDelTag}
+        onClose={() => setConfirmDelTag(null)}
         title={t('settings.tags.confirmDelete.title')}
         message={
           <>
-            {t('settings.tags.confirmDelete.body', { name: confirmDel?.name })}
+            {t('settings.tags.confirmDelete.body', { name: confirmDelTag?.name })}
             <span className="block text-ink-500 mt-1">{t('settings.tags.confirmDelete.note')}</span>
           </>
         }
         confirmText={t('common.delete')}
         danger
-        onConfirm={() => remove.mutate(confirmDel.id)}
+        onConfirm={() => removeTag.mutate(confirmDelTag.id)}
       />
     </div>
   )
 }
+
 
 // =============== 收藏夹管理 ===============
 

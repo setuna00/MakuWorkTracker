@@ -97,6 +97,14 @@ export const api = {
     return request(`/api/tags/suggest?${sp.toString()}`)
   },
 
+  // ---- tag groups ----
+  listTagGroups: () => request('/api/tag-groups'),
+  createTagGroup: (data) => request('/api/tag-groups', { method: 'POST', body: JSON.stringify(data) }),
+  updateTagGroup: (id, data) => request(`/api/tag-groups/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteTagGroup: (id) => request(`/api/tag-groups/${id}`, { method: 'DELETE' }),
+  reorderTagGroups: (orderedIds) =>
+    request('/api/tag-groups/reorder', { method: 'POST', body: JSON.stringify({ order: orderedIds }) }),
+
   // ---- collections ----
   listCollections: () => request('/api/collections'),
   createCollection: (data) => request('/api/collections', { method: 'POST', body: JSON.stringify(data) }),

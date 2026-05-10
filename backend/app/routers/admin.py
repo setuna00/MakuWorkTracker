@@ -5,11 +5,13 @@ import json
 import zipfile
 from datetime import datetime
 from pathlib import Path
+
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlmodel import Session, select
+
 from ..db import get_session
-from ..models import Work, Watching, ProgressEntry, Tag, Collection
+from ..models import Work, Watching, ProgressEntry, Tag, Collection, TagGroup
 from ..config import settings
 from ..utils.backup import perform_backup, list_backups
 
@@ -61,16 +63,19 @@ def export_json(session: Session = Depends(get_session)):
     entries = session.exec(select(ProgressEntry)).all()
     tags = session.exec(select(Tag)).all()
     collections = session.exec(select(Collection)).all()
+    tag_groups = session.exec(select(TagGroup)).all()
 
     data = {
         "exported_at": datetime.utcnow().isoformat(),
-        "version": "1.0",
+        "version": "1.3.0",
         "works": [],
         "watchings": [_model_to_dict(w) for w in watchings],
         "progress_entries": [_model_to_dict(e) for e in entries],
         "tags": [_model_to_dict(t) for t in tags],
         "collections": [_model_to_dict(c) for c in collections],
+        "tag_groups": [_model_to_dict(g) for g in tag_groups],
     }
+
     # works 单独处理：要带 tag_ids / collection_ids
     for w in works:
         d = _model_to_dict(w)
@@ -167,12 +172,35 @@ def admin_info(session: Session = Depends(get_session)):
     entries_count = session.exec(select(ProgressEntry)).all()
     db_size = settings.db_path.stat().st_size if settings.db_path.exists() else 0
     return {
-        "version": "1.0.0",
+        "version": "1.3.0",
         "works_count": len(works_count),
         "entries_count": len(entries_count),
         "db_size_bytes": db_size,
         "data_dir": str(settings.data_dir),
     }
+
+
+def _is_legacy_payload(payload: dict) -> bool:
+    """判断 JSON 备份是不是 v1.3.0 之前的老格式。
+
+    判定：缺 version 或 version 字符串小于 "1.3.0"，或者 tag_groups 字段缺失。
+    用字符串比较即可（语义化 X.Y.Z 与字典序在同长度下一致）。
+    """
+    version = payload.get("version", "")
+    if not version:
+        return True
+    if "tag_groups" not in payload:
+        return True
+    return version < "1.3.0"
+
+
+def _create_default_tag_group(session: Session) -> int:
+    """导入老备份时新建默认组并返回 id。"""
+    grp = TagGroup(name="默认", sort_order=0, is_default=True)
+    session.add(grp)
+    session.commit()
+    session.refresh(grp)
+    return grp.id
 
 
 @router.post("/import/json")
@@ -185,9 +213,11 @@ def import_json_backup(file: UploadFile = File(...), session: Session = Depends(
         with zipfile.ZipFile(io.BytesIO(raw), "r") as zf:
             if "data.json" not in zf.namelist():
                 raise HTTPException(status_code=400, detail="导出包缺少 data.json")
-            payload = json.loads(zf.read("data.json").decode("utf-8"))
+            payload = json.loads(zf.read("data.json").decode("utf-8-sig"))
 
-            # 清空旧数据（按外键依赖顺序）
+            is_legacy = _is_legacy_payload(payload)
+
+            # 清空旧数据（按外键依赖顺序：先关联表/子表 → 父表）
             for row in session.exec(select(ProgressEntry)).all():
                 session.delete(row)
             for row in session.exec(select(Watching)).all():
@@ -198,14 +228,59 @@ def import_json_backup(file: UploadFile = File(...), session: Session = Depends(
                 session.delete(row)
             for row in session.exec(select(Collection)).all():
                 session.delete(row)
+            for row in session.exec(select(TagGroup)).all():
+                session.delete(row)
             session.commit()
 
-            # 恢复标签/收藏夹（保留原 id）
+            # 恢复 TagGroup
+            tag_group_map = {}
+            if is_legacy:
+                # 老备份：建默认组，所有 tag 都归它
+                default_gid = _create_default_tag_group(session)
+                tag_group_map[None] = default_gid
+            else:
+                for g in payload.get("tag_groups", []):
+                    obj = TagGroup(
+                        id=g.get("id"),
+                        name=g["name"],
+                        sort_order=g.get("sort_order", 0),
+                        is_default=g.get("is_default", False),
+                    )
+                    session.add(obj)
+                    tag_group_map[obj.id] = obj.id
+                session.commit()
+
+                # 防御：如果新备份里没有 is_default=True 的组，强制建一个
+                has_default = session.exec(
+                    select(TagGroup).where(TagGroup.is_default == True)
+                ).first()
+                if not has_default:
+                    default_gid = _create_default_tag_group(session)
+                else:
+                    default_gid = has_default.id
+
+            # 恢复标签
             tag_map = {}
             for t in payload.get("tags", []):
-                obj = Tag(id=t.get("id"), name=t["name"], color=t.get("color", "#888780"))
+                if is_legacy:
+                    gid = default_gid
+                    aliases = []
+                else:
+                    raw_gid = t.get("group_id")
+                    gid = tag_group_map.get(raw_gid, default_gid)
+                    aliases = t.get("aliases") or []
+
+                obj = Tag(
+                    id=t.get("id"),
+                    name=t["name"],
+                    color=t.get("color", "#888780"),
+                    group_id=gid,
+                    aliases=aliases,
+                )
                 session.add(obj)
                 tag_map[obj.id] = obj
+
+            # 恢复收藏夹（保留原 id）
             col_map = {}
             for c in payload.get("collections", []):
                 obj = Collection(
@@ -239,8 +314,7 @@ def import_json_backup(file: UploadFile = File(...), session: Session = Depends(
                 session.add(obj)
             session.commit()
 
-            # 用 model_validate 让 Pydantic 自动把 ISO 字符串解析成 date / datetime
-            # —— 直接 Watching(**x) 不会触发字段验证，导致字符串被原样塞进 SQLite Date 列报错
+            # Watching / ProgressEntry 用 model_validate 解析日期字符串
             for x in payload.get("watchings", []):
                 session.add(Watching.model_validate(x))
             for e in payload.get("progress_entries", []):
@@ -258,10 +332,13 @@ def import_json_backup(file: UploadFile = File(...), session: Session = Depends(
                 with zf.open(name) as src, open(target, "wb") as dst:
                     dst.write(src.read())
 
+        return {
+            "ok": True,
+            "migrated_legacy": is_legacy,
+            "message": "已从旧版本备份自动迁移" if is_legacy else "导入完成",
+        }
     except HTTPException:
         raise
     except Exception as e:
         session.rollback()
-        raise HTTPException(status_code=400, detail=f"导入失败: {e}")
-
-    return {"ok": True}
+        raise HTTPException(status_code=500, detail=f"导入失败：{str(e)}")

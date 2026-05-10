@@ -5,16 +5,41 @@ from pydantic import BaseModel, Field, ConfigDict
 from .models.enums import WorkType, ReleaseStatus, PersonalStatus
 
 
+# ---------- TagGroup ----------
+
+class TagGroupCreate(BaseModel):
+    name: str
+    sort_order: int = 0
+
+
+class TagGroupUpdate(BaseModel):
+    name: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+class TagGroupRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    sort_order: int
+    is_default: bool
+    created_at: datetime
+
+
 # ---------- Tag ----------
 
 class TagCreate(BaseModel):
     name: str
     color: str = "#888780"
+    group_id: Optional[int] = None  # None 时路由层填默认组 id
+    aliases: List[str] = Field(default_factory=list)
 
 
 class TagUpdate(BaseModel):
     name: Optional[str] = None
     color: Optional[str] = None
+    group_id: Optional[int] = None
+    aliases: Optional[List[str]] = None
 
 
 class TagRead(BaseModel):
@@ -22,6 +47,8 @@ class TagRead(BaseModel):
     id: int
     name: str
     color: str
+    group_id: Optional[int] = None
+    aliases: List[str] = Field(default_factory=list)
     created_at: datetime
     work_count: int = 0  # 关联作品数（list_tags 接口会填，单条 CRUD 时默认 0）
 

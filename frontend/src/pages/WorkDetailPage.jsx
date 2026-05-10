@@ -14,6 +14,7 @@ import { QuickRecordModal } from '../components/QuickRecordModal'
 import { StarRating } from '../components/StarRating'
 import { CoverCropper } from '../components/CoverCropper'
 import { TagChip, SelectableTagChip } from '../components/TagChip'
+import { TagPicker } from '../components/TagPicker'
 import { EditEntryModal } from '../components/EditEntryModal'
 import { BackfillModal } from '../components/BackfillModal'
 
@@ -676,6 +677,15 @@ function DayEntries({ group, unitLabel, isMovie, onEdit }) {
   )
 }
 
+const EDIT_FIELD_CONTROL =
+  'w-full min-h-11 rounded-xl border border-slate-300 bg-slate-50/80 px-3.5 text-sm text-ink-900 placeholder:text-ink-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:border-slate-400 focus:border-brand-600 focus:ring-4 focus:ring-brand-100 focus:outline-none'
+
+const EDIT_TEXTAREA_CONTROL =
+  `${EDIT_FIELD_CONTROL} min-h-[120px] py-2.5 resize-y`
+
+const EDIT_FILE_CONTROL =
+  'w-full text-sm text-ink-700 file:mr-3 file:rounded-lg file:border file:border-paper-300 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium file:text-ink-700 hover:file:border-brand-400'
+
 function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
   const t = useT()
   const queryClient = useQueryClient()
@@ -693,6 +703,7 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
   const [collectionIds, setCollectionIds] = useState(work.collections.map(c => c.id))
 
   const { data: allTags = [] } = useQuery({ queryKey: ['tags'], queryFn: api.listTags })
+  const { data: tagGroups = [] } = useQuery({ queryKey: ['tagGroups'], queryFn: api.listTagGroups })
   const { data: allCollections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
   const { data: suggestedTags = [] } = useQuery({
     queryKey: ['tag-suggestions', { tagIds: [...tagIds].sort((a, b) => a - b), workType: work.type }],
@@ -701,8 +712,6 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
     staleTime: 60_000,
     placeholderData: (previousData) => previousData ?? [],
   })
-
-  const visibleSuggestedTags = suggestedTags.filter(tg => !tagIds.includes(tg.id))
 
   const unitOptions = typeMeta?.unit_options || []
   const supportsCustomUnit = unitOptions.length > 0
@@ -752,45 +761,74 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
     <Modal open={true} onClose={onClose} title={t('workDetail.editTitle')} size="lg">
       <div className="space-y-4">
         <Field label={t('newWork.step2.fieldTitle')}>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input
+            className={EDIT_FIELD_CONTROL}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
         </Field>
         <Field label={t('workDetail.editFieldOriginalTitle')}>
-          <input value={originalTitle} onChange={(e) => setOriginalTitle(e.target.value)} />
+          <input
+            className={EDIT_FIELD_CONTROL}
+            value={originalTitle}
+            onChange={(e) => setOriginalTitle(e.target.value)}
+          />
         </Field>
 
         {typeMeta?.creator_fields?.length > 0 && (
           <div className="grid grid-cols-2 gap-3">
             {typeMeta.creator_fields.map(f => (
               <Field key={f.key} label={translateCreatorLabel(f, t)}>
-                <input value={creators[f.key] || ''}
-                       onChange={(e) => setCreators(c => ({ ...c, [f.key]: e.target.value }))} />
+                <input
+                  className={EDIT_FIELD_CONTROL}
+                  value={creators[f.key] || ''}
+                  onChange={(e) => setCreators(c => ({ ...c, [f.key]: e.target.value }))}
+                />
               </Field>
             ))}
           </div>
         )}
 
         <Field label={t('workDetail.editFieldDescription')}>
-          <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+          <textarea
+            className={EDIT_TEXTAREA_CONTROL}
+            rows={5}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </Field>
 
         {!isMovie && (
           <>
             <div className="grid grid-cols-2 gap-3">
               <Field label={t('newWork.step2.releaseStatus')}>
-                <select value={releaseStatus} onChange={(e) => setReleaseStatus(e.target.value)}>
+                <select
+                  className={EDIT_FIELD_CONTROL}
+                  value={releaseStatus}
+                  onChange={(e) => setReleaseStatus(e.target.value)}
+                >
                   <option value="ongoing">{translateRelease('ongoing', t)}</option>
                   <option value="finished">{translateRelease('finished', t)}</option>
                 </select>
               </Field>
               {typeMeta?.has_range_progress && (
                 <Field label={t('newWork.step2.totalUnits', { unit: effectiveUnitDisplay })}>
-                  <input type="number" value={totalUnits} onChange={(e) => setTotalUnits(e.target.value)} />
+                  <input
+                    className={EDIT_FIELD_CONTROL}
+                    type="number"
+                    value={totalUnits}
+                    onChange={(e) => setTotalUnits(e.target.value)}
+                  />
                 </Field>
               )}
             </div>
             {supportsCustomUnit && (
               <Field label={t('newWork.step2.unitLabel')}>
-                <select value={unitLabel} onChange={(e) => setUnitLabel(e.target.value)} className="!w-32">
+                <select
+                  value={unitLabel}
+                  onChange={(e) => setUnitLabel(e.target.value)}
+                  className={`${EDIT_FIELD_CONTROL} !w-32`}
+                >
                   <option value="">{t('newWork.step2.unitDefault', { unit: translateUnit(typeMeta.unit_label, t) })}</option>
                   {unitOptions.map(u => (
                     <option key={u} value={u}>{translateUnit(u, t)}</option>
@@ -807,50 +845,23 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
               <img src={coverPreview} alt={t('cover.preview')}
                    className="w-20 h-[107px] object-cover rounded border border-paper-200" />
             )}
-            <input type="file" accept="image/*" onChange={handleFileSelect} className="flex-1" />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className={`${EDIT_FILE_CONTROL} flex-1`}
+            />
           </div>
         </Field>
 
         <Field label={t('workDetail.editFieldTagsLabel', { n: tagIds.length })}>
-          {allTags.length === 0 ? (
-            <div className="text-xs text-ink-400 px-3 py-3 bg-paper-50 rounded border border-paper-200">
-              {t('workDetail.editTagsEmpty')}
-            </div>
-          ) : (
-            <div className="bg-paper-50 border border-paper-200 rounded-lg p-3">
-              <div className="flex flex-wrap gap-1.5">
-                {allTags.map(tg => (
-                  <SelectableTagChip key={tg.id}
-                                     selected={tagIds.includes(tg.id)}
-                                     onClick={() => setTagIds(ids =>
-                                       ids.includes(tg.id) ? ids.filter(x => x !== tg.id) : [...ids, tg.id]
-                                     )}>
-                    {tg.name}
-                  </SelectableTagChip>
-                ))}
-              </div>
-
-              {tagIds.length > 0 && visibleSuggestedTags.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-paper-200">
-                  <div className="text-[11px] text-ink-500 mb-2 uppercase tracking-wider">
-                    {t('newWork.tagSuggestions')}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {visibleSuggestedTags.map(tg => (
-                      <SelectableTagChip
-                        key={tg.id}
-                        color={tg.color}
-                        selected={false}
-                        onClick={() => setTagIds(ids => ids.includes(tg.id) ? ids : [...ids, tg.id])}
-                      >
-                        + {tg.name}
-                      </SelectableTagChip>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          <TagPicker
+            allTags={allTags}
+            allGroups={tagGroups}
+            selectedIds={tagIds}
+            onChange={setTagIds}
+            suggestedTags={suggestedTags}
+          />
         </Field>
 
         <Field label={t('workDetail.editFieldCollectionsLabel', { n: collectionIds.length })}>
@@ -889,7 +900,9 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
 function Field({ label, children }) {
   return (
     <div>
-      <label className="text-xs text-ink-500 mb-1.5 block font-medium">{label}</label>
+      <label className="text-[13px] font-semibold text-ink-700 mb-2 block">
+        {label}
+      </label>
       {children}
     </div>
   )

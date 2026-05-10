@@ -7,16 +7,16 @@
 """
 from contextlib import asynccontextmanager
 from pathlib import Path
+
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import init_db
+from .routers import works, watchings, progress, tags, tag_groups, collections, timeline, admin, meta
 from .utils.backup import start_scheduler, stop_scheduler
-
-from .routers import works, watchings, progress, tags, collections, timeline, admin, meta
 
 
 @asynccontextmanager
@@ -44,6 +44,7 @@ app.include_router(works.router)
 app.include_router(watchings.router)
 app.include_router(progress.router)
 app.include_router(tags.router)
+app.include_router(tag_groups.router)
 app.include_router(collections.router)
 app.include_router(timeline.router)
 app.include_router(admin.router)

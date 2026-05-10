@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { useT, translateType, translateUnit, translateStatus, translateRelease, translateCreatorLabel } from '../lib/i18n'
 import { Button, Modal } from '../components/Modal'
 import { CoverCropper } from '../components/CoverCropper'
+import { TagPicker } from '../components/TagPicker'
 import { SelectableTagChip } from '../components/TagChip'
 
 export default function NewWorkPage() {
@@ -38,11 +39,13 @@ export default function NewWorkPage() {
     queryFn: api.getTypesMeta,
   })
   const { data: tags = [] } = useQuery({ queryKey: ['tags'], queryFn: api.listTags })
+  const { data: tagGroups = [] } = useQuery({ queryKey: ['tagGroups'], queryFn: api.listTagGroups })
   const { data: suggestedTags = [] } = useQuery({
     queryKey: ['tag-suggestions', { tagIds: [...tagIds].sort((a, b) => a - b), workType: type }],
     queryFn: () => api.suggestTags({ tagIds, workType: type }),
     enabled: tagIds.length > 0,
     staleTime: 60_000,
+    placeholderData: (previousData) => previousData,
   })
   const { data: collections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
 
@@ -373,47 +376,13 @@ export default function NewWorkPage() {
           </Section>
 
           <Section title={t('newWork.step3.tags')} desc={t('newWork.step3.tagsSelected', { n: tagIds.length })}>
-            {tags.length === 0 ? (
-              <div className="text-sm text-ink-400 px-4 py-4 bg-paper-50 rounded-lg border border-paper-200">
-                {t('newWork.step3.tagsEmpty')}
-              </div>
-            ) : (
-              <div className="bg-paper-50 border border-paper-200 rounded-xl p-4">
-                <div className="flex flex-wrap gap-2">
-                  {tags.map(tg => (
-                    <SelectableTagChip key={tg.id} color={tg.color}
-                                       selected={tagIds.includes(tg.id)}
-                                       onClick={() => setTagIds(ids =>
-                                         ids.includes(tg.id) ? ids.filter(x => x !== tg.id) : [...ids, tg.id]
-                                       )}>
-                      {tg.name}
-                    </SelectableTagChip>
-                  ))}
-                </div>
-
-                {tagIds.length > 0 && suggestedTags.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-paper-200">
-                    <div className="text-[11px] text-ink-500 mb-2 uppercase tracking-wider">
-                      {t('newWork.tagSuggestions')}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {suggestedTags
-                        .filter(tg => !tagIds.includes(tg.id))
-                        .map(tg => (
-                          <SelectableTagChip
-                            key={tg.id}
-                            color={tg.color}
-                            selected={false}
-                            onClick={() => setTagIds(ids => ids.includes(tg.id) ? ids : [...ids, tg.id])}
-                          >
-                            + {tg.name}
-                          </SelectableTagChip>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            <TagPicker
+              allTags={tags}
+              allGroups={tagGroups}
+              selectedIds={tagIds}
+              onChange={setTagIds}
+              suggestedTags={suggestedTags}
+            />
           </Section>
 
           <Section title={t('newWork.step3.collections')} desc={t('newWork.step3.tagsSelected', { n: collectionIds.length })}>

@@ -22,15 +22,30 @@ class WorkCollectionLink(SQLModel, table=True):
     collection_id: Optional[int] = Field(default=None, foreign_key="collection.id", primary_key=True)
 
 
+# ---------- TagGroup ----------
+
+class TagGroup(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(unique=True, index=True)
+    sort_order: int = Field(default=0, index=True)
+    is_default: bool = Field(default=False, index=True)  # 默认组标志
+    created_at: datetime = Field(default_factory=utcnow)
+
+    tags: List["Tag"] = Relationship(back_populates="group")
+
+
 # ---------- Tag ----------
 
 class Tag(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True, index=True)
     color: str = Field(default="#888780")  # 默认中性灰
+    group_id: Optional[int] = Field(default=None, foreign_key="taggroup.id", index=True)
+    aliases: List[str] = Field(default_factory=list, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=utcnow)
 
     works: List["Work"] = Relationship(back_populates="tags", link_model=WorkTagLink)
+    group: Optional["TagGroup"] = Relationship(back_populates="tags")
 
 
 # ---------- Collection ----------

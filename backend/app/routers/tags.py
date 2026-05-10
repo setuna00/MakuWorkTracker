@@ -10,6 +10,51 @@ from ..schemas import TagCreate, TagUpdate, TagRead
 router = APIRouter(prefix="/api/tags", tags=["tags"])
 
 
+def _get_default_group_id(session: Session) -> int:
+    """取默认组 id。按 is_default=True 查；正常迁移后必定存在一条。"""
+    from ..models import TagGroup
+    grp = session.exec(select(TagGroup).where(TagGroup.is_default == True)).first()
+    if not grp:
+        raise HTTPException(500, "默认标签组不存在，请检查数据库迁移")
+    return grp.id
+
+
+def _validate_alias_namespace(
+    session: Session,
+    name: str,
+    aliases: List[str],
+    exclude_tag_id: Optional[int] = None,
+) -> None:
+    """校验全局别名空间唯一性：name + 所有 aliases 都不能与
+    其他 tag 的 name 或 aliases 冲突，自身内部也不能重复。
+    """
+    # 自身内部不重复（含 name 和 aliases 之间）
+    candidates = [name] + list(aliases)
+    seen = set()
+    for c in candidates:
+        c_norm = c.strip()
+        if not c_norm:
+            raise HTTPException(400, "标签名/别名不能为空字符串")
+        if c_norm in seen:
+            raise HTTPException(400, f"重复的标签名/别名：{c_norm}")
+        seen.add(c_norm)
+
+    # 跨 tag 不冲突
+    all_tags = session.exec(select(Tag)).all()
+    used = {}  # value -> tag_id
+    for t in all_tags:
+        if exclude_tag_id is not None and t.id == exclude_tag_id:
+            continue
+        used[t.name] = t.id
+        for a in (t.aliases or []):
+            used[a] = t.id
+
+    for c in candidates:
+        c_norm = c.strip()
+        if c_norm in used:
+            raise HTTPException(400, f"标签名/别名 \"{c_norm}\" 已被其他标签使用")
+
+
 @router.get("", response_model=List[TagRead])
 def list_tags(
     in_collection: int | None = None,
@@ -48,17 +93,33 @@ def list_tags(
 
     out = []
     for tag, cnt in rows:
-        d = TagRead.model_validate(tag).model_dump()
-        d["work_count"] = int(cnt or 0)
-        out.append(TagRead(**d))
+        out.append(TagRead.model_validate(tag).model_copy(
+            update={"work_count": int(cnt or 0)}
+        ))
     return out
 
 
 @router.post("", response_model=TagRead)
 def create_tag(data: TagCreate, session: Session = Depends(get_session)):
-    if session.exec(select(Tag).where(Tag.name == data.name)).first():
+    name = data.name.strip()
+    aliases = [a.strip() for a in (data.aliases or []) if a.strip()]
+
+    # 重名校验（先做老的）
+    if session.exec(select(Tag).where(Tag.name == name)).first():
         raise HTTPException(400, "标签已存在")
-    tag = Tag(name=data.name, color=data.color)
+
+    # 别名空间唯一
+    _validate_alias_namespace(session, name, aliases)
+
+    # group_id 兜底
+    group_id = data.group_id if data.group_id is not None else _get_default_group_id(session)
+
+    # 校验 group 存在
+    from ..models import TagGroup
+    if not session.get(TagGroup, group_id):
+        raise HTTPException(400, "指定的标签组不存在")
+
+    tag = Tag(name=name, color=data.color, group_id=group_id, aliases=aliases)
     session.add(tag)
     session.commit()
     session.refresh(tag)
@@ -70,7 +131,25 @@ def update_tag(tag_id: int, data: TagUpdate, session: Session = Depends(get_sess
     tag = session.get(Tag, tag_id)
     if not tag:
         raise HTTPException(404, "Tag not found")
-    for k, v in data.model_dump(exclude_unset=True).items():
+
+    update_data = data.model_dump(exclude_unset=True)
+
+    # 如果改了 name 或 aliases，跑别名空间校验
+    if "name" in update_data or "aliases" in update_data:
+        new_name = (update_data.get("name") or tag.name).strip()
+        new_aliases = update_data.get("aliases", tag.aliases) or []
+        new_aliases = [a.strip() for a in new_aliases if a.strip()]
+        _validate_alias_namespace(session, new_name, new_aliases, exclude_tag_id=tag.id)
+        update_data["name"] = new_name
+        update_data["aliases"] = new_aliases
+
+    # 如果改了 group_id，校验 group 存在
+    if "group_id" in update_data:
+        from ..models import TagGroup
+        if not session.get(TagGroup, update_data["group_id"]):
+            raise HTTPException(400, "指定的标签组不存在")
+
+    for k, v in update_data.items():
         setattr(tag, k, v)
     session.add(tag)
     session.commit()
@@ -150,12 +229,8 @@ def suggest_tags(
         t = tag_by_id.get(tid)
         if t is None:
             continue
-        out.append(TagRead(
-            id=t.id,
-            name=t.name,
-            color=t.color,
-            created_at=t.created_at,
-            work_count=all_tag_counts.get(t.id, 0),
+        out.append(TagRead.model_validate(t).model_copy(
+            update={"work_count": all_tag_counts.get(t.id, 0)}
         ))
     return out
 
@@ -198,11 +273,7 @@ def _fallback_popular_tags(
         t = tag_by_id.get(tid)
         if t is None:
             continue
-        out.append(TagRead(
-            id=t.id,
-            name=t.name,
-            color=t.color,
-            created_at=t.created_at,
-            work_count=tag_id_to_count[t.id],
+        out.append(TagRead.model_validate(t).model_copy(
+            update={"work_count": tag_id_to_count[t.id]}
         ))
     return out
