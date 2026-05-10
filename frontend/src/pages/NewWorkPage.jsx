@@ -38,6 +38,12 @@ export default function NewWorkPage() {
     queryFn: api.getTypesMeta,
   })
   const { data: tags = [] } = useQuery({ queryKey: ['tags'], queryFn: api.listTags })
+  const { data: suggestedTags = [] } = useQuery({
+    queryKey: ['tag-suggestions', { tagIds: [...tagIds].sort((a, b) => a - b), workType: type }],
+    queryFn: () => api.suggestTags({ tagIds, workType: type }),
+    enabled: tagIds.length > 0,
+    staleTime: 60_000,
+  })
   const { data: collections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
 
   const typeMeta = typesMeta.types.find(ty => ty.value === type)
@@ -384,6 +390,28 @@ export default function NewWorkPage() {
                     </SelectableTagChip>
                   ))}
                 </div>
+
+                {tagIds.length > 0 && suggestedTags.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-paper-200">
+                    <div className="text-[11px] text-ink-500 mb-2 uppercase tracking-wider">
+                      {t('newWork.tagSuggestions')}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedTags
+                        .filter(tg => !tagIds.includes(tg.id))
+                        .map(tg => (
+                          <SelectableTagChip
+                            key={tg.id}
+                            color={tg.color}
+                            selected={false}
+                            onClick={() => setTagIds(ids => ids.includes(tg.id) ? ids : [...ids, tg.id])}
+                          >
+                            + {tg.name}
+                          </SelectableTagChip>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </Section>

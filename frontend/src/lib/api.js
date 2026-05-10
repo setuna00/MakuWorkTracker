@@ -90,6 +90,12 @@ export const api = {
   createTag: (data) => request('/api/tags', { method: 'POST', body: JSON.stringify(data) }),
   updateTag: (id, data) => request(`/api/tags/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteTag: (id) => request(`/api/tags/${id}`, { method: 'DELETE' }),
+  suggestTags: ({ tagIds, workType }) => {
+    const sp = new URLSearchParams()
+    for (const id of tagIds) sp.append('tag_ids', id)
+    if (workType) sp.append('work_type', workType)
+    return request(`/api/tags/suggest?${sp.toString()}`)
+  },
 
   // ---- collections ----
   listCollections: () => request('/api/collections'),

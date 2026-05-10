@@ -1,9 +1,10 @@
 """标签 CRUD。"""
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlmodel import Session, select, func
 from ..db import get_session
 from ..models import Tag
+from ..models.enums import WorkType
 from ..schemas import TagCreate, TagUpdate, TagRead
 
 router = APIRouter(prefix="/api/tags", tags=["tags"])
@@ -85,3 +86,123 @@ def delete_tag(tag_id: int, session: Session = Depends(get_session)):
     session.delete(tag)
     session.commit()
     return {"ok": True}
+
+
+@router.get("/suggest", response_model=List[TagRead])
+def suggest_tags(
+    session: Session = Depends(get_session),
+    tag_ids: List[int] = Query(..., min_length=1),
+    work_type: Optional[WorkType] = None,
+    limit: int = Query(7, ge=1, le=20),
+):
+    """根据当前已选 tag 集合，推荐相关的其他 tag。
+
+    算法：共现频次 + 开方去偏
+      score(t) = sum_over_s(co_occur(s, t)) / sqrt(global_count(t))
+
+    fallback：当所有候选都是 0 分（即已选 tag 没有共现作品），
+    退回到同 work_type 作品的热门 tag。
+    """
+    from ..models import WorkTagLink
+
+    # 拿到所有 tag 的 global count（只需查一次）
+    all_tag_counts = dict(session.exec(
+        select(WorkTagLink.tag_id, func.count(WorkTagLink.work_id))
+        .group_by(WorkTagLink.tag_id)
+    ).all())
+
+    # 找出所有"含至少一个已选 tag"的 work_id
+    target_works = set(session.exec(
+        select(WorkTagLink.work_id)
+        .where(WorkTagLink.tag_id.in_(tag_ids))
+        .distinct()
+    ).all())
+
+    if not target_works:
+        return _fallback_popular_tags(session, tag_ids, work_type, limit)
+
+    # 在这些 work 上数其他 tag 出现次数
+    co_counts: dict[int, int] = {}
+    for tag_id_x, work_id in session.exec(
+        select(WorkTagLink.tag_id, WorkTagLink.work_id)
+        .where(WorkTagLink.work_id.in_(target_works))
+        .where(WorkTagLink.tag_id.not_in(tag_ids))
+    ).all():
+        co_counts[tag_id_x] = co_counts.get(tag_id_x, 0) + 1
+
+    if not co_counts:
+        return _fallback_popular_tags(session, tag_ids, work_type, limit)
+
+    # 算 score 并排序
+    scored = []
+    for tid, co in co_counts.items():
+        gc = all_tag_counts.get(tid, 1)
+        score = co / (gc ** 0.5)
+        scored.append((tid, score))
+    scored.sort(key=lambda x: x[1], reverse=True)
+    top_ids = [tid for tid, _ in scored[:limit]]
+
+    # 取 Tag 详情，按 top_ids 顺序返回
+    tags = session.exec(select(Tag).where(Tag.id.in_(top_ids))).all()
+    tag_by_id = {t.id: t for t in tags}
+    out = []
+    for tid in top_ids:
+        t = tag_by_id.get(tid)
+        if t is None:
+            continue
+        out.append(TagRead(
+            id=t.id,
+            name=t.name,
+            color=t.color,
+            created_at=t.created_at,
+            work_count=all_tag_counts.get(t.id, 0),
+        ))
+    return out
+
+
+def _fallback_popular_tags(
+    session: Session,
+    excluded_ids: List[int],
+    work_type: Optional[WorkType],
+    limit: int,
+) -> List[TagRead]:
+    """fallback：返回同 work_type 下最热门的 tag（排除已选）。
+    如果没传 work_type，全局热门。
+    """
+    from ..models import WorkTagLink, Work
+
+    stmt = (
+        select(
+            WorkTagLink.tag_id,
+            func.count(WorkTagLink.work_id).label("cnt"),
+        )
+        .group_by(WorkTagLink.tag_id)
+        .order_by(func.count(WorkTagLink.work_id).desc())
+        .limit(limit)
+    )
+    if excluded_ids:
+        stmt = stmt.where(WorkTagLink.tag_id.not_in(excluded_ids))
+    if work_type is not None:
+        stmt = stmt.join(Work, Work.id == WorkTagLink.work_id).where(Work.type == work_type)
+
+    rows = session.exec(stmt).all()
+    if not rows:
+        return []
+
+    tag_id_to_count = {tid: cnt for tid, cnt in rows}
+    tags = session.exec(select(Tag).where(Tag.id.in_(list(tag_id_to_count.keys())))).all()
+    tag_by_id = {t.id: t for t in tags}
+
+    out = []
+    for tid in tag_id_to_count.keys():
+        t = tag_by_id.get(tid)
+        if t is None:
+            continue
+        out.append(TagRead(
+            id=t.id,
+            name=t.name,
+            color=t.color,
+            created_at=t.created_at,
+            work_count=tag_id_to_count[t.id],
+        ))
+    return out

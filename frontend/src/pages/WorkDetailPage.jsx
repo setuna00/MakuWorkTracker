@@ -694,6 +694,15 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
 
   const { data: allTags = [] } = useQuery({ queryKey: ['tags'], queryFn: api.listTags })
   const { data: allCollections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
+  const { data: suggestedTags = [] } = useQuery({
+    queryKey: ['tag-suggestions', { tagIds: [...tagIds].sort((a, b) => a - b), workType: work.type }],
+    queryFn: () => api.suggestTags({ tagIds, workType: work.type }),
+    enabled: tagIds.length > 0,
+    staleTime: 60_000,
+    placeholderData: (previousData) => previousData ?? [],
+  })
+
+  const visibleSuggestedTags = suggestedTags.filter(tg => !tagIds.includes(tg.id))
 
   const unitOptions = typeMeta?.unit_options || []
   const supportsCustomUnit = unitOptions.length > 0
@@ -820,6 +829,26 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
                   </SelectableTagChip>
                 ))}
               </div>
+
+              {tagIds.length > 0 && visibleSuggestedTags.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-paper-200">
+                  <div className="text-[11px] text-ink-500 mb-2 uppercase tracking-wider">
+                    {t('newWork.tagSuggestions')}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {visibleSuggestedTags.map(tg => (
+                      <SelectableTagChip
+                        key={tg.id}
+                        color={tg.color}
+                        selected={false}
+                        onClick={() => setTagIds(ids => ids.includes(tg.id) ? ids : [...ids, tg.id])}
+                      >
+                        + {tg.name}
+                      </SelectableTagChip>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Field>
