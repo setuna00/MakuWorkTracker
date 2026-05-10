@@ -73,6 +73,7 @@ def get_timeline(
 
             notes = [e.note for e, _, _ in entries if e.note]
             entry_ids = [e.id for e, _, _ in entries]
+            is_backfill = bool(entries) and all(e.is_backfill for e, _, _ in entries)
 
             items.append(TimelineDayItem(
                 work_id=first_work.id,
@@ -88,6 +89,7 @@ def get_timeline(
                 range_end=merged_end,
                 notes=notes,
                 entry_ids=entry_ids,
+                is_backfill=is_backfill,
             ))
         days.append(TimelineDay(date=d, items=items))
 

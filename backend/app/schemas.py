@@ -201,7 +201,7 @@ class TimelineDayItem(BaseModel):
     range_end: Optional[int]    # 合并后的最大 end
     notes: List[str]            # 当日的所有非空 note，按 entry 时间序
     entry_ids: List[int]        # 合并的 entry id 列表（用于编辑）
-
+    is_backfill: bool = False   # 合并条目全是补录时为 true；混合时 false
 
 class TimelineDay(BaseModel):
     date: _date

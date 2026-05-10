@@ -48,6 +48,7 @@ export default function TimelinePage() {
   const [rangePreset, setRangePreset] = useState('all')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+  const [includeBackfill, setIncludeBackfill] = useState(false)
   const [editingEntry, setEditingEntry] = useState(null)
   const [editingHasRange, setEditingHasRange] = useState(true)
   const [editingUnit, setEditingUnit] = useState('集')
@@ -84,12 +85,13 @@ export default function TimelinePage() {
   }
 
   const { data: timeline } = useQuery({
-    queryKey: ['timeline', { type: filterType, range: dateRange }],
+    queryKey: ['timeline', { type: filterType, range: dateRange, includeBackfill }],
     queryFn: () => api.getTimeline({
       type: filterType,
       from: dateRange?.from,
       to: dateRange?.to,
       limit: 500,
+      include_backfill: includeBackfill,
     }),
   })
 
@@ -133,6 +135,13 @@ export default function TimelinePage() {
           </FilterTab>
         ))}
         <FilterTab active={rangePreset === 'custom'} onClick={() => setRangePreset('custom')}>{t('timeline.custom')}</FilterTab>
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-ink-600 cursor-pointer select-none whitespace-nowrap pl-3">
+          <input type="checkbox"
+                 checked={includeBackfill}
+                 onChange={(e) => setIncludeBackfill(e.target.checked)}
+                 className="cursor-pointer" />
+          {t('timeline.includeBackfill')}
+        </label>
       </div>
 
       {rangePreset === 'custom' && (
@@ -174,15 +183,28 @@ export default function TimelinePage() {
                   <div key={`${day.date}-${item.watching_id}-${i}`}
                         className="relative group">
                     <Link to={`/works/${item.work_id}`}
-                          className="card p-3 flex gap-3 hover:border-brand-400 hover:shadow-cardHover transition-all">
+                      className={`card p-3 flex gap-3 transition-all ${
+                        item.is_backfill
+                          ? 'bg-paper-50 border-paper-200 opacity-90 hover:border-paper-300'
+                          : 'hover:border-brand-400 hover:shadow-cardHover'
+                      }`}>
                       {item.work_cover_thumb && (
                         <img src={coverUrl(item.work_cover_thumb)}
                              className="w-14 h-[75px] object-cover rounded flex-shrink-0"
                              alt={item.work_title} />
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold leading-tight hover:text-brand-700 transition-colors line-clamp-2">
-                          {item.work_title}
+                        <div className="flex items-start gap-2">
+                          <div className={`min-w-0 text-sm font-semibold leading-tight hover:text-brand-700 transition-colors line-clamp-2 ${
+                            item.is_backfill ? 'text-ink-600' : ''
+                          }`}>
+                            {item.work_title}
+                          </div>
+                          {item.is_backfill && (
+                            <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-paper-200 text-ink-500 font-medium">
+                              {t('common.backfillTag')}
+                            </span>
+                          )}
                         </div>
                         {item.show_round && (
                           <div className="text-[10px] text-ink-400 mt-0.5">
@@ -190,10 +212,16 @@ export default function TimelinePage() {
                           </div>
                         )}
                         {item.range_start != null && (
-                          <div className="text-xs text-brand-600 font-medium mt-1.5">
+                          <div className={`text-xs font-medium mt-1.5 ${
+                            item.is_backfill ? 'text-ink-500' : 'text-brand-600'
+                          }`}>
                             {formatRange(item.range_start, item.range_end, getDisplayUnit(item))}
                             {item.entry_ids.length > 1 && (
-                              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 bg-brand-50 text-brand-700 rounded font-normal">
+                              <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded font-normal ${
+                                item.is_backfill
+                                  ? 'bg-paper-200 text-ink-500'
+                                  : 'bg-brand-50 text-brand-700'
+                              }`}>
                                 {t('timeline.merged', { n: item.entry_ids.length })}
                               </span>
                             )}
