@@ -105,6 +105,7 @@ class ProgressEntry(SQLModel, table=True):
     range_end: Optional[int] = None
     consumed_count: int = Field(default=1)    # 冗余：end-start+1，电影=1
     note: Optional[str] = None
+    is_backfill: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 

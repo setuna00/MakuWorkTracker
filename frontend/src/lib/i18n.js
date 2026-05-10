@@ -68,6 +68,7 @@ const zh = {
   'common.clear': '清除',
   'common.sortAsc': '升序',
   'common.sortDesc': '降序',
+  'common.backfillTag': '补录',
 
   // Home
   'home.watching': '在看中 · {count}',
@@ -125,6 +126,7 @@ const zh = {
   'timeline.to': '到',
   'timeline.empty': '没有符合条件的记录',
   'timeline.entriesCount': '{n} 条记录',
+  'timeline.includeBackfill': '包含补录',
   'timeline.merged': '合并 {n}',
   'timeline.mergedExpand': '合并 {n} 条',
   'timeline.confirmDeleteEntry.title': '确认删除记录',
@@ -152,6 +154,15 @@ const zh = {
   // Edit entry
   'editEntry.title': '编辑进度记录',
   'editEntry.note': '感想',
+
+  // Backfill
+  'backfill.title': '补录《{title}》',
+  'backfill.hint': '补录用于登记以前看过的内容。补录的记录不出现在时间轴和本月统计里。',
+  'backfill.dateLabel': '补录日期',
+  'backfill.toLabel': '看到第 ({unit})',
+  'backfill.noteLabel': '备注（选填）',
+  'backfill.submit': '保存补录',
+  'backfill.invalidRange': '请填写有效的进度数',
 
   // New work
   'newWork.title': '新建作品',
@@ -181,6 +192,9 @@ const zh = {
   'newWork.step3.collections': '收藏夹',
   'newWork.step3.tagsEmpty': '还没有标签，可以去「设置 → 标签」创建后再回来添加',
   'newWork.step3.collectionsEmpty': '还没有收藏夹，可以去「设置 → 收藏夹」创建后再回来添加',
+  'newWork.backfill.toggle': '我以前看过',
+  'newWork.backfill.toLabel': '看到第 ({unit})：',
+  'newWork.backfill.movieHint': '已观看，记录后将自动标记完成。',
   'newWork.errors.titleRequired': '请输入作品名称',
   'newWork.errors.titleRequiredAlt': '请填写标题',
   'newWork.errors.totalRequired': '请输入总{unit}数',
@@ -230,6 +244,7 @@ const zh = {
   'workDetail.entryLog': '进度日志',
   'workDetail.entryLogEmpty': '还没有进度记录',
   'workDetail.recordNew': '记录新进度',
+  'workDetail.backfill': '补录',
   'workDetail.round': '第 {n} 周目',
   'workDetail.newRound': '开启新周目',
   'workDetail.unitProgress': '第 {n} {unit}',
@@ -383,6 +398,7 @@ const en = {
   'common.clear': 'Clear',
   'common.sortAsc': 'Ascending',
   'common.sortDesc': 'Descending',
+  'common.backfillTag': 'Backfill',
 
   // Home
   'home.watching': 'Now Watching · {count}',
@@ -440,6 +456,7 @@ const en = {
   'timeline.to': 'To',
   'timeline.empty': 'No matching entries',
   'timeline.entriesCount': '{n} entries',
+  'timeline.includeBackfill': 'Include backfill',
   'timeline.merged': 'merged {n}',
   'timeline.mergedExpand': '{n} merged',
   'timeline.confirmDeleteEntry.title': 'Delete entry?',
@@ -467,6 +484,15 @@ const en = {
   // Edit entry
   'editEntry.title': 'Edit Entry',
   'editEntry.note': 'Note',
+
+  // Backfill
+  'backfill.title': 'Backfill: {title}',
+  'backfill.hint': "Backfill is for logging things you watched in the past. Backfilled entries don't show in timeline or stats.",
+  'backfill.dateLabel': 'Backfill date',
+  'backfill.toLabel': 'Watched up to ({unit})',
+  'backfill.noteLabel': 'Note (optional)',
+  'backfill.submit': 'Save backfill',
+  'backfill.invalidRange': 'Please enter a valid progress number',
 
   // New work
   'newWork.title': 'New Work',
@@ -496,6 +522,9 @@ const en = {
   'newWork.step3.collections': 'Favorites',
   'newWork.step3.tagsEmpty': 'No tags yet — create some in Settings → Tags',
   'newWork.step3.collectionsEmpty': 'No favorites yet — create some in Settings → Favorites',
+  'newWork.backfill.toggle': "I've watched this before",
+  'newWork.backfill.toLabel': 'Watched up to ({unit}):',
+  'newWork.backfill.movieHint': 'Will be marked watched on save.',
   'newWork.errors.titleRequired': 'Please enter a title',
   'newWork.errors.titleRequiredAlt': 'Title is required',
   'newWork.errors.totalRequired': 'Please enter total {unit}s',
@@ -545,6 +574,7 @@ const en = {
   'workDetail.entryLog': 'Entries',
   'workDetail.entryLogEmpty': 'No entries yet',
   'workDetail.recordNew': 'Record progress',
+  'workDetail.backfill': 'Backfill',
   'workDetail.round': 'Round {n}',
   'workDetail.newRound': 'New round',
   'workDetail.unitProgress': '{unit} {n}',

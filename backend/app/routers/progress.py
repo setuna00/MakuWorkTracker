@@ -119,6 +119,7 @@ def create_entry(
         range_end=data.range_end,
         consumed_count=consumed,
         note=data.note,
+        is_backfill=data.is_backfill,
     )
     session.add(entry)
 

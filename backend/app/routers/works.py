@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from sqlmodel import Session, select, func
 from ..db import get_session
 from ..models import Work, Tag, Collection, Watching, ProgressEntry
-from ..models.enums import WorkType, ReleaseStatus, PersonalStatus
+from ..models.enums import WorkType, ReleaseStatus, PersonalStatus, TYPES_WITH_RANGE_PROGRESS
 from ..schemas import (
     WorkCreate, WorkUpdate, WorkRead, WorkDetailRead, WatchingRead, MonthlyOverview
 )
@@ -203,6 +203,7 @@ def list_works(
                 .where(
                     ProgressEntry.date >= month_start,
                     ProgressEntry.date < month_end,
+                    ProgressEntry.is_backfill == False,
                 )
                 .distinct()
                 .subquery()
@@ -217,6 +218,7 @@ def list_works(
                     func.min(ProgressEntry.date).label("first_date"),
                 )
                 .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+                .where(ProgressEntry.is_backfill == False)
                 .group_by(Watching.work_id)
                 .subquery()
             )
@@ -335,7 +337,6 @@ def create_work(
     data = WorkCreate.model_validate_json(payload)
 
     # 完结作品总集数必填（电影除外）
-    from ..models.enums import TYPES_WITH_RANGE_PROGRESS
     if (data.release_status == ReleaseStatus.finished
             and data.type in TYPES_WITH_RANGE_PROGRESS
             and not data.total_units):
@@ -379,6 +380,54 @@ def create_work(
         personal_status=data.initial_status,
     )
     session.add(main_watching)
+    session.flush()  # 拿到 main_watching.id
+
+    # 一并补录：如果用户在新建时勾选了"我以前看过"
+    if data.backfill is not None:
+        from datetime import date as _date_cls
+
+        backfill = data.backfill
+        # 校验：有 range 类型必须给 range_end
+        if data.type in TYPES_WITH_RANGE_PROGRESS:
+            if not backfill.range_end or backfill.range_end < 1:
+                raise HTTPException(400, "补录必须填写到第几集/章")
+            r_start, r_end = 1, backfill.range_end
+            consumed = r_end - r_start + 1
+        else:
+            r_start = r_end = None
+            consumed = 1
+
+        backfill_entry = ProgressEntry(
+            watching_id=main_watching.id,
+            date=_date_cls.today(),
+            range_start=r_start,
+            range_end=r_end,
+            consumed_count=consumed,
+            note=backfill.note,
+            is_backfill=True,
+        )
+        session.add(backfill_entry)
+
+        # 走和正常 create_entry 一样的副作用
+        if main_watching.started_at is None:
+            main_watching.started_at = _date_cls.today()
+            session.add(main_watching)
+
+        if main_watching.personal_status == PersonalStatus.want:
+            main_watching.personal_status = PersonalStatus.watching
+            main_watching.updated_at = datetime.now(timezone.utc)
+            session.add(main_watching)
+
+        # 连载中作品 + range_end > total → 自动扩 total
+        if (work.release_status == ReleaseStatus.ongoing
+                and r_end is not None
+                and (work.total_units is None or r_end > work.total_units)):
+            work.total_units = r_end
+            work.updated_at = datetime.now(timezone.utc)
+            session.add(work)
+
+        sync_watching_completion(session, main_watching, work)
+
     session.commit()
     session.refresh(work)
 

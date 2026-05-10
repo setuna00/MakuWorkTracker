@@ -94,6 +94,7 @@ class ProgressEntryCreate(BaseModel):
     range_start: Optional[int] = None
     range_end: Optional[int] = None
     note: Optional[str] = None
+    is_backfill: bool = False
 
 
 class ProgressEntryUpdate(BaseModel):
@@ -101,6 +102,7 @@ class ProgressEntryUpdate(BaseModel):
     range_start: Optional[int] = None
     range_end: Optional[int] = None
     note: Optional[str] = None
+    is_backfill: Optional[bool] = None
 
 
 class ProgressEntryRead(BaseModel):
@@ -112,11 +114,18 @@ class ProgressEntryRead(BaseModel):
     range_end: Optional[int]
     consumed_count: int
     note: Optional[str]
+    is_backfill: bool = False
     created_at: datetime
     updated_at: datetime
 
 
 # ---------- Work ----------
+
+class WorkCreateBackfill(BaseModel):
+    """新建作品时一并补录的字段。"""
+    range_end: Optional[int] = None  # 电影类传 null
+    note: Optional[str] = None
+
 
 class WorkCreate(BaseModel):
     title: str
@@ -132,6 +141,7 @@ class WorkCreate(BaseModel):
     collection_ids: List[int] = Field(default_factory=list)
     # 初始周目
     initial_status: PersonalStatus = PersonalStatus.want
+    backfill: Optional[WorkCreateBackfill] = None
 
 
 class WorkUpdate(BaseModel):

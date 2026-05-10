@@ -15,6 +15,7 @@ import { StarRating } from '../components/StarRating'
 import { CoverCropper } from '../components/CoverCropper'
 import { TagChip, SelectableTagChip } from '../components/TagChip'
 import { EditEntryModal } from '../components/EditEntryModal'
+import { BackfillModal } from '../components/BackfillModal'
 
 export default function WorkDetailPage() {
   const t = useT()
@@ -24,6 +25,7 @@ export default function WorkDetailPage() {
 
   const [activeRound, setActiveRound] = useState(null)
   const [recordOpen, setRecordOpen] = useState(false)
+  const [backfillOpen, setBackfillOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState(null)
   const [confirmDeleteWork, setConfirmDeleteWork] = useState(false)
   const [confirmDeleteRound, setConfirmDeleteRound] = useState(false)
@@ -198,9 +200,14 @@ export default function WorkDetailPage() {
               <h3 className="text-[13px] font-semibold text-ink-700">
                 {t('workDetail.entryLog')} · <span className="text-brand-600">{entries.length}</span>
               </h3>
-              <Button variant="primary" onClick={() => setRecordOpen(true)}>
-                <Plus size={14} /> {t('workDetail.recordNew')}
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="default" onClick={() => setBackfillOpen(true)}>
+                  {t('workDetail.backfill')}
+                </Button>
+                <Button variant="primary" onClick={() => setRecordOpen(true)}>
+                  <Plus size={14} /> {t('workDetail.recordNew')}
+                </Button>
+              </div>
             </div>
 
             <div className="border-l-2 border-paper-200 ml-1.5 pl-5 space-y-4 pt-2">
@@ -223,6 +230,15 @@ export default function WorkDetailPage() {
           watching={currentWatching}
           typesMeta={typesMeta.types}
           onClose={() => setRecordOpen(false)}
+        />
+      )}
+
+      {backfillOpen && currentWatching && (
+        <BackfillModal
+          work={work}
+          watching={currentWatching}
+          typesMeta={typesMeta.types}
+          onClose={() => setBackfillOpen(false)}
         />
       )}
 
@@ -564,6 +580,7 @@ function DayEntries({ group, unitLabel, isMovie, onEdit }) {
   const queryClient = useQueryClient()
   const [expanded, setExpanded] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
+  const isGroupBackfill = group.list.every(e => e.is_backfill)
   const deleteMut = useMutation({
     mutationFn: (id) => api.deleteEntry(id),
     onSuccess: () => { queryClient.invalidateQueries(); setConfirmDel(null) },
@@ -572,8 +589,10 @@ function DayEntries({ group, unitLabel, isMovie, onEdit }) {
   const renderRange = (start, end) => formatRange(start, end, unitLabel)
 
   return (
-    <div className="relative group">
-      <div className="absolute -left-[26px] top-1.5 w-3 h-3 rounded-full bg-brand-500 ring-4 ring-white" />
+    <div className={`relative group ${isGroupBackfill ? 'opacity-70' : ''}`}>
+      <div className={`absolute -left-[26px] top-1.5 w-3 h-3 rounded-full ring-4 ring-white ${
+        isGroupBackfill ? 'bg-ink-400' : 'bg-brand-500'
+      }`} />
       <div className="flex items-center justify-between gap-2 mb-0.5">
         <div className="text-[11px] text-ink-400">{relativeDate(group.date)} · {group.date}</div>
         {!group.isMulti && (
@@ -599,6 +618,11 @@ function DayEntries({ group, unitLabel, isMovie, onEdit }) {
               ? renderRange(group.merged_start, group.merged_end)
               : t('workDetail.watched')}
         </span>
+        {isGroupBackfill && (
+          <span className="text-[10px] px-1.5 py-0.5 bg-paper-200 text-ink-600 rounded font-medium">
+            {t('common.backfillTag')}
+          </span>
+        )}
         {group.isMulti && (
           <button onClick={() => setExpanded(e => !e)}
                   className="text-[10px] px-2 py-0.5 bg-brand-50 text-brand-700 rounded font-medium">

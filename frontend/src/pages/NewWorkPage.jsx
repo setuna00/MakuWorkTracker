@@ -22,6 +22,8 @@ export default function NewWorkPage() {
   const [releaseStatus, setReleaseStatus] = useState('ongoing')
   const [totalUnits, setTotalUnits] = useState('')
   const [unitLabel, setUnitLabel] = useState('')
+  const [backfillOn, setBackfillOn] = useState(false)
+  const [backfillRangeEnd, setBackfillRangeEnd] = useState('')
   const [creators, setCreators] = useState({})
   const [initialStatus, setInitialStatus] = useState('want')
   const [tagIds, setTagIds] = useState([])
@@ -29,6 +31,7 @@ export default function NewWorkPage() {
   const [error, setError] = useState('')
   const [titleError, setTitleError] = useState('')
   const [totalUnitsError, setTotalUnitsError] = useState('')
+  const [backfillError, setBackfillError] = useState('')
 
   const { data: typesMeta = { types: [] } } = useQuery({
     queryKey: ['types-meta'],
@@ -40,7 +43,10 @@ export default function NewWorkPage() {
   const typeMeta = typesMeta.types.find(ty => ty.value === type)
   const isMovie = type === 'movie'
   const needsTotalUnits = !isMovie && releaseStatus === 'finished' && typeMeta?.has_range_progress
-  const isStep2Valid = title.trim() && (!needsTotalUnits || Number(totalUnits) > 0)
+  const needsBackfillRangeEnd = backfillOn && !isMovie && typeMeta?.has_range_progress
+  const isStep2Valid = title.trim()
+    && (!needsTotalUnits || Number(totalUnits) > 0)
+    && (!needsBackfillRangeEnd || parseInt(backfillRangeEnd, 10) > 0)
   const unitOptions = typeMeta?.unit_options || []
   const supportsCustomUnit = unitOptions.length > 0
 
@@ -48,19 +54,7 @@ export default function NewWorkPage() {
   const effectiveUnitDisplay = translateUnit(unitLabel || typeMeta?.unit_label || '', t)
 
   const create = useMutation({
-    mutationFn: () => api.createWork({
-      title,
-      original_title: originalTitle || null,
-      type,
-      description: description || null,
-      release_status: isMovie ? 'finished' : releaseStatus,
-      total_units: isMovie ? 1 : (totalUnits ? parseInt(totalUnits) : null),
-      unit_label: supportsCustomUnit ? (unitLabel || null) : null,
-      creators,
-      tag_ids: tagIds,
-      collection_ids: collectionIds,
-      initial_status: initialStatus,
-    }, coverFile),
+    mutationFn: (payload) => api.createWork(payload, coverFile),
     onSuccess: (work) => navigate(`/works/${work.id}`),
     onError: (e) => setError(e.message || t('newWork.errors.createFailed')),
   })
@@ -84,6 +78,8 @@ export default function NewWorkPage() {
 
   const handleSubmit = () => {
     setError('')
+    setBackfillError('')
+
     if (!title.trim()) {
       setError(t('newWork.errors.titleRequiredAlt'))
       return
@@ -92,7 +88,38 @@ export default function NewWorkPage() {
       setError(t('newWork.errors.totalRequiredFinished', { unit: effectiveUnitDisplay }))
       return
     }
-    create.mutate()
+
+    let backfillPayload = undefined
+    if (backfillOn) {
+      if (isMovie || !typeMeta?.has_range_progress) {
+        backfillPayload = { range_end: null }
+      } else {
+        const n = parseInt(backfillRangeEnd, 10)
+        if (!n || n < 1) {
+          setBackfillError(t('newWork.errors.totalRequired', { unit: effectiveUnitDisplay }))
+          setStep(2)
+          return
+        }
+        backfillPayload = { range_end: n }
+      }
+    }
+
+    const payload = {
+      title,
+      original_title: originalTitle || null,
+      type,
+      description: description || null,
+      release_status: isMovie ? 'finished' : releaseStatus,
+      total_units: isMovie ? 1 : (totalUnits ? parseInt(totalUnits, 10) : null),
+      unit_label: supportsCustomUnit ? (unitLabel || null) : null,
+      creators,
+      tag_ids: tagIds,
+      collection_ids: collectionIds,
+      initial_status: initialStatus,
+      ...(backfillPayload ? { backfill: backfillPayload } : {}),
+    }
+
+    create.mutate(payload)
   }
 
   const STATUSES = [
@@ -202,43 +229,87 @@ export default function NewWorkPage() {
                            onSelect={handleCoverSelect} onRemove={removeCover} />
           </Section>
 
-          {!isMovie && (
-            <Section title={t('newWork.step2.progress')} desc={t('newWork.step2.progressDesc', { unit: effectiveUnitDisplay })}>
-              <FormGrid>
-                <Field span={6} label={t('newWork.step2.releaseStatus')}>
-                  <SelectInput value={releaseStatus} onChange={(e) => {
-                    setReleaseStatus(e.target.value)
-                    if (e.target.value !== 'finished') setTotalUnitsError('')
-                  }}>
-                    <option value="ongoing">{translateRelease('ongoing', t)}</option>
-                    <option value="finished">{translateRelease('finished', t)}</option>
-                  </SelectInput>
-                </Field>
-                {typeMeta?.has_range_progress && (
-                  <Field span={6} label={t('newWork.step2.totalUnits', { unit: effectiveUnitDisplay })}
-                         hint={releaseStatus === 'finished' ? t('common.required') : t('common.optional')} error={totalUnitsError}>
-                    <TextInput type="number" value={totalUnits} min={1}
-                               onChange={(e) => {
-                                 setTotalUnits(e.target.value)
-                                 if (totalUnitsError) setTotalUnitsError('')
-                               }}
-                               placeholder="24"
-                               hasError={!!totalUnitsError} />
-                  </Field>
-                )}
-                {supportsCustomUnit && (
-                  <Field span={6} label={t('newWork.step2.unitLabel')} hint={t('common.optional')}>
-                    <SelectInput value={unitLabel} onChange={(e) => setUnitLabel(e.target.value)}>
-                      <option value="">{t('newWork.step2.unitDefault', { unit: translateUnit(typeMeta.unit_label, t) })}</option>
-                      {unitOptions.map(u => (
-                        <option key={u} value={u}>{translateUnit(u, t)}</option>
-                      ))}
+          <Section title={t('newWork.step2.progress')} desc={t('newWork.step2.progressDesc', { unit: effectiveUnitDisplay })}>
+            <FormGrid>
+              {!isMovie && (
+                <>
+                  <Field span={6} label={t('newWork.step2.releaseStatus')}>
+                    <SelectInput value={releaseStatus} onChange={(e) => {
+                      setReleaseStatus(e.target.value)
+                      if (e.target.value !== 'finished') setTotalUnitsError('')
+                    }}>
+                      <option value="ongoing">{translateRelease('ongoing', t)}</option>
+                      <option value="finished">{translateRelease('finished', t)}</option>
                     </SelectInput>
                   </Field>
+                  {typeMeta?.has_range_progress && (
+                    <Field span={6} label={t('newWork.step2.totalUnits', { unit: effectiveUnitDisplay })}
+                           hint={releaseStatus === 'finished' ? t('common.required') : t('common.optional')} error={totalUnitsError}>
+                      <TextInput type="number" value={totalUnits} min={1}
+                                 onChange={(e) => {
+                                   setTotalUnits(e.target.value)
+                                   if (totalUnitsError) setTotalUnitsError('')
+                                 }}
+                                 placeholder="24"
+                                 hasError={!!totalUnitsError} />
+                    </Field>
+                  )}
+                  {supportsCustomUnit && (
+                    <Field span={6} label={t('newWork.step2.unitLabel')} hint={t('common.optional')}>
+                      <SelectInput value={unitLabel} onChange={(e) => setUnitLabel(e.target.value)}>
+                        <option value="">{t('newWork.step2.unitDefault', { unit: translateUnit(typeMeta.unit_label, t) })}</option>
+                        {unitOptions.map(u => (
+                          <option key={u} value={u}>{translateUnit(u, t)}</option>
+                        ))}
+                      </SelectInput>
+                    </Field>
+                  )}
+                </>
+              )}
+
+              {/* 补录区：让用户登记以前已经看过的内容 */}
+              <Field span={12} label="" hint="" error={backfillError}>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="checkbox"
+                    id="backfill-toggle"
+                    checked={backfillOn}
+                    onChange={(e) => {
+                      setBackfillOn(e.target.checked)
+                      if (!e.target.checked) {
+                        setBackfillError('')
+                        setBackfillRangeEnd('')
+                      }
+                    }}
+                    className="cursor-pointer"
+                  />
+                  <label htmlFor="backfill-toggle" className="text-sm text-ink-700 cursor-pointer select-none">
+                    {t('newWork.backfill.toggle')}
+                  </label>
+                </div>
+                {backfillOn && !isMovie && typeMeta?.has_range_progress && (
+                  <div className="ml-6 mt-2 flex items-center gap-2">
+                    <span className="text-xs text-ink-500">{t('newWork.backfill.toLabel', { unit: effectiveUnitDisplay })}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={backfillRangeEnd}
+                      onChange={(e) => {
+                        setBackfillRangeEnd(e.target.value)
+                        if (backfillError) setBackfillError('')
+                      }}
+                      className="!w-24 input-compact"
+                    />
+                  </div>
                 )}
-              </FormGrid>
-            </Section>
-          )}
+                {backfillOn && (isMovie || !typeMeta?.has_range_progress) && (
+                  <div className="ml-6 mt-2 text-xs text-ink-500">
+                    {t('newWork.backfill.movieHint')}
+                  </div>
+                )}
+              </Field>
+            </FormGrid>
+          </Section>
 
           <div className="px-7 py-4 bg-paper-50 border-t border-paper-200 flex items-center justify-between">
             <Button variant="ghost" onClick={() => setStep(1)}>{t('common.prev')}</Button>
@@ -253,8 +324,13 @@ export default function NewWorkPage() {
                         setTotalUnitsError(t('newWork.errors.totalRequired', { unit: effectiveUnitDisplay }))
                         return
                       }
+                      if (needsBackfillRangeEnd && !(parseInt(backfillRangeEnd, 10) > 0)) {
+                        setBackfillError(t('newWork.errors.totalRequired', { unit: effectiveUnitDisplay }))
+                        return
+                      }
                       setTitleError('')
                       setTotalUnitsError('')
+                      setBackfillError('')
                       setStep(3)
                     }}>
               {t('common.next')}

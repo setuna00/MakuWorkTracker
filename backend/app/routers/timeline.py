@@ -22,6 +22,7 @@ def get_timeline(
     type: Optional[WorkType] = None,
     work_id: Optional[int] = None,
     limit: int = Query(500, ge=1, le=2000),
+    include_backfill: bool = Query(False),
 ):
     """全局时间轴。同日同 watching 的多条 entry 合并显示。"""
     # 一次性 join 拿到所有需要的字段
@@ -30,6 +31,8 @@ def get_timeline(
         .join(Watching, Watching.id == ProgressEntry.watching_id)
         .join(Work, Work.id == Watching.work_id)
     )
+    if not include_backfill:
+        stmt = stmt.where(ProgressEntry.is_backfill == False)
     if from_date:
         stmt = stmt.where(ProgressEntry.date >= from_date)
     if to_date:
@@ -111,6 +114,7 @@ def monthly_overview(
         select(func.count(ProgressEntry.id))
         .where(ProgressEntry.date >= month_start)
         .where(ProgressEntry.date < month_end_excl)
+        .where(ProgressEntry.is_backfill == False)
     ).one()
 
     # 2. 活跃作品数：本月内有进度记录的不同 work
@@ -119,6 +123,7 @@ def monthly_overview(
         .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
         .where(ProgressEntry.date >= month_start)
         .where(ProgressEntry.date < month_end_excl)
+        .where(ProgressEntry.is_backfill == False)
     ).one()
 
     # 3. 本月新开作品数：该 work 的首条 ProgressEntry 落在本月
@@ -126,6 +131,7 @@ def monthly_overview(
     subq = (
         select(Watching.work_id.label("wid"), func.min(ProgressEntry.date).label("first_date"))
         .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+        .where(ProgressEntry.is_backfill == False)
         .group_by(Watching.work_id)
         .subquery()
     )

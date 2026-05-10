@@ -32,7 +32,23 @@ def init_db() -> None:
     # 必须先 import 所有模型让 SQLModel 注册
     from . import models  # noqa: F401
     SQLModel.metadata.create_all(engine)
+    _migrate_add_is_backfill()
     _run_lightweight_migrations()
+
+
+def _migrate_add_is_backfill():
+    """v1.2.0: ProgressEntry 加 is_backfill 列。SQLite 安全幂等迁移。"""
+    from sqlalchemy import text, inspect
+    inspector = inspect(engine)
+    if "progressentry" not in inspector.get_table_names():
+        return
+    columns = [c["name"] for c in inspector.get_columns("progressentry")]
+    if "is_backfill" in columns:
+        return
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE progressentry ADD COLUMN is_backfill BOOLEAN DEFAULT 0 NOT NULL"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_progressentry_is_backfill ON progressentry (is_backfill)"))
+        conn.commit()
 
 
 def _run_lightweight_migrations() -> None:
