@@ -39,7 +39,7 @@ def get_timeline(
     if work_id is not None:
         stmt = stmt.where(Work.id == work_id)
 
-    stmt = stmt.order_by(ProgressEntry.date.desc(), ProgressEntry.created_at.asc()).limit(limit)
+    stmt = stmt.order_by(ProgressEntry.date.desc(), ProgressEntry.created_at.desc()).limit(limit)
     rows = session.exec(stmt).all()
 
     # 统计每个 work 的总周目数（用于决定 show_round）

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, useNavigate, Link } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation, Link } from 'react-router-dom'
 import { Home, Library, Clock, Settings as Cog, Plus, ChevronDown, Search, Star } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
@@ -18,6 +18,12 @@ export function Layout({ children }) {
   const [collectionsOpen, setCollectionsOpen] = useState(true)
   const [fabOpen, setFabOpen] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  // 在二级页面（详情、创建、录入、设置）隐藏右下浮球，避免重复入口干扰
+  const hideFab =
+    location.pathname.startsWith('/works/') ||      // /works/new + /works/:id
+    location.pathname === '/quick-record' ||
+    location.pathname === '/settings'
   const { data: collections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
   const { data: tags = [] } = useQuery({ queryKey: ['tags'], queryFn: api.listTags })
   const { data: typesMeta = { types: [] } } = useQuery({
@@ -78,7 +84,7 @@ export function Layout({ children }) {
 
       <main className="flex-1 min-w-0 flex flex-col">
         <div className="sticky top-0 z-10 bg-white border-b border-paper-200 h-[52px] px-4 md:px-8 lg:px-10 flex items-center gap-3">
-          <div className="md:hidden font-medium text-brand-600">{t('app.name')}</div>
+          <Link to="/" className="md:hidden font-medium text-brand-600">{t('app.name')}</Link>
           <div className="flex-1 flex items-center justify-end">
             <LibrarySearch navigate={navigate} tags={tags} collections={collections} typesMeta={typesMeta} />
           </div>
@@ -93,39 +99,41 @@ export function Layout({ children }) {
        * 现在:全部统一用 TabItem (NavLink),收藏夹去自己的 /favorites 页。
        * 桌面端那个 sidebar 折叠列表完全没动,所以 PC 行为不受影响。
        */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-paper-200 grid grid-cols-5 z-30">
-        <TabItem to="/" icon={<Home size={18} />} label={t('nav.home')} />
-        <TabItem to="/library" icon={<Library size={18} />} label={t('nav.library')} />
-        <TabItem to="/favorites" icon={<Star size={18} />} label={t('nav.favorites')} />
-        <TabItem to="/timeline" icon={<Clock size={18} />} label={t('nav.timeline')} />
-        <TabItem to="/settings" icon={<Cog size={18} />} label={t('nav.settings')} />
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-paper-200 grid grid-cols-5 z-30 pb-[env(safe-area-inset-bottom)]">
+        <TabItem to="/" icon={<Home size={22} />} label={t('nav.home')} />
+        <TabItem to="/library" icon={<Library size={22} />} label={t('nav.library')} />
+        <TabItem to="/favorites" icon={<Star size={22} />} label={t('nav.favorites')} />
+        <TabItem to="/timeline" icon={<Clock size={22} />} label={t('nav.timeline')} />
+        <TabItem to="/settings" icon={<Cog size={22} />} label={t('nav.settings')} />
       </nav>
 
-      <div className="fixed right-5 bottom-20 md:bottom-6 z-40">
-        {fabOpen && (
-          <div className="absolute bottom-full mb-2 right-0 bg-white border border-paper-200 rounded-lg shadow-xl overflow-hidden min-w-[170px]">
-            <button
-              onClick={() => { setFabOpen(false); navigate('/works/new') }}
-              className="block w-full text-left px-4 py-2.5 text-sm hover:bg-brand-50 hover:text-brand-700 border-b border-paper-200 transition-colors"
-            >
-              {t('fab.newWork')}
-            </button>
-            <button
-              onClick={() => { setFabOpen(false); navigate('/quick-record') }}
-              className="block w-full text-left px-4 py-2.5 text-sm hover:bg-brand-50 hover:text-brand-700 transition-colors"
-            >
-              {t('fab.quickRecord')}
-            </button>
-          </div>
-        )}
-        <button
-          onClick={() => setFabOpen(o => !o)}
-          className="w-14 h-14 rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 flex items-center justify-center transition-all"
-          style={{ transform: fabOpen ? 'rotate(45deg)' : 'none' }}
-        >
-          <Plus size={24} />
-        </button>
-      </div>
+      {!hideFab && (
+        <div className="fixed right-5 bottom-20 md:bottom-6 z-40">
+          {fabOpen && (
+            <div className="absolute bottom-full mb-2 right-0 bg-white border border-paper-200 rounded-lg shadow-xl overflow-hidden min-w-[170px]">
+              <button
+                onClick={() => { setFabOpen(false); navigate('/works/new') }}
+                className="block w-full text-left px-4 py-2.5 text-sm hover:bg-brand-50 hover:text-brand-700 border-b border-paper-200 transition-colors"
+              >
+                {t('fab.newWork')}
+              </button>
+              <button
+                onClick={() => { setFabOpen(false); navigate('/quick-record') }}
+                className="block w-full text-left px-4 py-2.5 text-sm hover:bg-brand-50 hover:text-brand-700 transition-colors"
+              >
+                {t('fab.quickRecord')}
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => setFabOpen(o => !o)}
+            className="w-14 h-14 rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 flex items-center justify-center transition-all"
+            style={{ transform: fabOpen ? 'rotate(45deg)' : 'none' }}
+          >
+            <Plus size={24} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -267,13 +275,13 @@ function TabItem({ to, icon, label }) {
       to={to}
       end
       className={({ isActive }) =>
-        `flex flex-col items-center gap-0.5 py-2 transition-colors ${
+        `flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
           isActive ? 'text-brand-600' : 'text-ink-500'
         }`
       }
     >
       {icon}
-      <span className="text-[10px]">{label}</span>
+      <span className="text-[11px]">{label}</span>
     </NavLink>
   )
 }

@@ -1,5 +1,5 @@
 """API 请求/响应模型。"""
-from datetime import datetime, date
+from datetime import datetime, date as _date
 from typing import Optional, List, Dict
 from pydantic import BaseModel, Field, ConfigDict
 from .models.enums import WorkType, ReleaseStatus, PersonalStatus
@@ -61,8 +61,8 @@ class WatchingUpdate(BaseModel):
     personal_status: Optional[PersonalStatus] = None
     rating: Optional[float] = Field(None, ge=1.0, le=10.0)
     overall_review: Optional[str] = None
-    started_at: Optional[date] = None
-    finished_at: Optional[date] = None
+    started_at: Optional[_date] = None
+    finished_at: Optional[_date] = None
 
 
 class WatchingRead(BaseModel):
@@ -74,8 +74,8 @@ class WatchingRead(BaseModel):
     personal_status: PersonalStatus
     rating: Optional[float]
     overall_review: Optional[str]
-    started_at: Optional[date]
-    finished_at: Optional[date]
+    started_at: Optional[_date]
+    finished_at: Optional[_date]
     created_at: datetime
     updated_at: datetime
     # 衍生字段（路由计算）
@@ -90,14 +90,14 @@ class ProgressEntryCreate(BaseModel):
     电影类型：range_start/range_end 都传 null，仅有 date 和 note。
     其他类型：必须传 range_start 和 range_end。
     """
-    date: date  # 由前端按本地时区计算并传入
+    date: _date  # 由前端按本地时区计算并传入
     range_start: Optional[int] = None
     range_end: Optional[int] = None
     note: Optional[str] = None
 
 
 class ProgressEntryUpdate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[_date] = None
     range_start: Optional[int] = None
     range_end: Optional[int] = None
     note: Optional[str] = None
@@ -107,7 +107,7 @@ class ProgressEntryRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     watching_id: int
-    date: date
+    date: _date
     range_start: Optional[int]
     range_end: Optional[int]
     consumed_count: int
@@ -194,7 +194,7 @@ class TimelineDayItem(BaseModel):
 
 
 class TimelineDay(BaseModel):
-    date: date
+    date: _date
     items: List[TimelineDayItem]
 
 

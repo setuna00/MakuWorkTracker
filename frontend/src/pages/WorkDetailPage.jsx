@@ -178,7 +178,7 @@ export default function WorkDetailPage() {
         </div>
 
         {work.description && (
-          <div className="bg-paper-50 border border-paper-200 rounded-lg p-4 text-[13px] leading-relaxed text-ink-700 mb-6">
+          <div className="bg-paper-50 border border-paper-200 rounded-lg p-4 text-[13px] leading-relaxed text-ink-700 mb-6 whitespace-pre-wrap">
             {work.description}
           </div>
         )}

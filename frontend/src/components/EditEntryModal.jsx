@@ -21,6 +21,7 @@ export function EditEntryModal({ entry, hasRange, unitLabel = '集', onClose }) 
   const [end, setEnd] = useState(entry.range_end ?? 1)
   const [note, setNote] = useState(entry.note || '')
   const [date, setDate] = useState(entry.date)
+  const [error, setError] = useState('')
   const update = useMutation({
     mutationFn: () => api.updateEntry(entry.id, {
       date,
@@ -29,6 +30,7 @@ export function EditEntryModal({ entry, hasRange, unitLabel = '集', onClose }) 
       note: note.trim() || null,
     }),
     onSuccess: () => { queryClient.invalidateQueries(); onClose() },
+    onError: (e) => setError(e.message || t('common.saveFailed')),
   })
 
   const displayUnit = translateUnit(unitLabel, t)
@@ -55,9 +57,14 @@ export function EditEntryModal({ entry, hasRange, unitLabel = '集', onClose }) 
         <Field label={t('editEntry.note')}>
           <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>
+        {error && (
+          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+            {error}
+          </div>
+        )}
         <div className="flex justify-end gap-2 pt-3 border-t border-paper-200">
           <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button variant="primary" onClick={() => update.mutate()} disabled={update.isPending}>
+          <Button variant="primary" onClick={() => { setError(''); update.mutate() }} disabled={update.isPending}>
             {t('common.save')}
           </Button>
         </div>

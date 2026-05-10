@@ -10,6 +10,7 @@ from ..schemas import (
     WorkCreate, WorkUpdate, WorkRead, WorkDetailRead, WatchingRead, MonthlyOverview
 )
 from ..utils.images import save_cover, delete_cover
+from .progress import sync_watching_completion
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/works", tags=["works"])
@@ -376,6 +377,11 @@ def update_work(
 
     work.updated_at = datetime.now(timezone.utc)
     session.add(work)
+
+    # 状态切换时（ongoing↔finished、total_units 变化）同步所有周目的完成状态
+    for w in work.watchings:
+        sync_watching_completion(session, w, work)
+
     session.commit()
     session.refresh(work)
 

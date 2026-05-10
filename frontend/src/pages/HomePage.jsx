@@ -19,10 +19,32 @@ export default function HomePage() {
     staleTime: 60 * 60 * 1000,
   })
 
-  const { data: watching = [] } = useQuery({
+  const { data: watchingRaw = [] } = useQuery({
     queryKey: ['works', { personal_status: 'watching', sort: 'last_progress' }],
     queryFn: () => api.listWorks({ personal_status: 'watching', sort: 'last_progress', order: 'desc' }),
   })
+
+  // 把 watching 切成两组：
+  // - 真正在看的（cur < total，或没填 total）
+  // - 等待更新的（连载中 + 已追平 total）
+  //
+  // 完结作品满进度的情况由后端自动转成 done，不会出现在这个 query 里，所以这里不处理。
+  const { watching, caughtUp } = useMemo(() => {
+    const onTrack = []
+    const waiting = []
+    for (const w of watchingRaw) {
+      const total = w.total_units
+      const cur = w.main_watching?.current_progress
+      const isOngoing = w.release_status === 'ongoing'
+      if (isOngoing && total != null && cur != null && cur >= total) {
+        waiting.push(w)
+      } else {
+        onTrack.push(w)
+      }
+    }
+    return { watching: onTrack, caughtUp: waiting }
+  }, [watchingRaw])
+  
   const { data: wantList = [] } = useQuery({
     queryKey: ['works', { personal_status: 'want' }],
     queryFn: () => api.listWorks({ personal_status: 'want' }),
@@ -31,7 +53,7 @@ export default function HomePage() {
   const recommendations = useMemo(() => {
     if (!wantList.length) return []
     const shuffled = [...wantList].sort(() => Math.random() - 0.5)
-    return shuffled.slice(0, 5)
+    return shuffled.slice(0, 7)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantList, recommendSeed])
 
@@ -87,6 +109,19 @@ export default function HomePage() {
           </div>
         )}
       </Section>
+
+      {caughtUp.length > 0 && (
+        <Section title={t('home.caughtUp', { count: caughtUp.length })}>
+          <div className="flex md:flex-wrap gap-4 overflow-x-auto md:overflow-visible scrollbar-thin pb-2 -mx-2 px-2">
+            {caughtUp.map(w => (
+              <WorkCard key={w.id} work={w} mainWatching={w.main_watching}
+                        size="lg"
+                        onQuickAdd={() => setRecordingWork(w)}
+                        unitLabel={getUnitLabel(w)} />
+            ))}
+          </div>
+        </Section>
+      )}
 
       <Section
         title={t('home.recommend')}

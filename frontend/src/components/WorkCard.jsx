@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Plus, Star } from 'lucide-react'
 import { coverUrl } from '../lib/api'
-import { useT } from '../lib/i18n'
+import { useT, translateType } from '../lib/i18n'
 
 export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md' }) {
   const t = useT()
@@ -15,8 +15,15 @@ export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md
   const total = work.total_units
   const rating = mainWatching?.rating
 
+  const chipClass = work.cover_thumb_path
+    ? "absolute top-1.5 left-1.5 z-[1] px-2 py-0.5 text-[11px] font-medium tracking-wide rounded bg-black/75 text-white border border-white/30 shadow-sm pointer-events-none"
+    : "absolute top-1.5 left-1.5 z-[1] px-2 py-0.5 text-[11px] font-medium tracking-wide rounded bg-paper-200 text-ink-700 border border-paper-300 pointer-events-none"
+
   return (
     <div className={`flex-shrink-0 ${sizeMap[size]} relative group`}>
+      <span className={chipClass}>
+        {translateType(work.type, t)}
+      </span>
       <Link to={`/works/${work.id}`}
             className="block hover:scale-[1.02] transition-transform">
         <div className="aspect-[3/4] bg-paper-100 rounded-lg overflow-hidden mb-2 border border-paper-200 group-hover:border-brand-300 group-hover:shadow-cardHover transition-all">

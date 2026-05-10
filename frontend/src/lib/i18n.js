@@ -46,6 +46,7 @@ const zh = {
   // Common
   'common.cancel': '取消',
   'common.save': '保存',
+  'common.saveFailed': '保存失败',
   'common.delete': '删除',
   'common.confirm': '确认',
   'common.confirmDelete': '确认删除',
@@ -68,6 +69,7 @@ const zh = {
 
   // Home
   'home.watching': '在看中 · {count}',
+  'home.caughtUp': '等待更新 · {count}',
   'home.viewAll': '查看全部',
   'home.recommend': '想看推荐',
   'home.recommendShuffle': '换一批',
@@ -354,6 +356,7 @@ const en = {
   // Common
   'common.cancel': 'Cancel',
   'common.save': 'Save',
+  'common.saveFailed': 'Save failed',
   'common.delete': 'Delete',
   'common.confirm': 'Confirm',
   'common.confirmDelete': 'Confirm Delete',
@@ -376,6 +379,7 @@ const en = {
 
   // Home
   'home.watching': 'Now Watching · {count}',
+  'home.caughtUp': 'Caught up · {count}',
   'home.viewAll': 'View all',
   'home.recommend': 'From your watchlist',
   'home.recommendShuffle': 'Shuffle',

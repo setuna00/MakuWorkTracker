@@ -37,30 +37,44 @@ def _maybe_extend_total(session: Session, work: Work, range_end):
         session.add(work)
 
 
-def _sync_watching_completion(session: Session, watching: Watching, work: Work):
-    """根据当前所有进度，自动同步周目 finished_at / personal_status。"""
-    if work.release_status != ReleaseStatus.finished or work.total_units is None:
-        return
+def sync_watching_completion(session: Session, watching: Watching, work: Work):
+    """根据当前作品发布状态 + 进度，自动同步 watching 的 finished_at / personal_status。
 
+    规则：
+    - 完结作品（finished + total_units 已设）：
+        cur >= total → done + finished_at = today
+        cur <  total → 退回 watching + 清空 finished_at（应对 total 被改大、退回的情况）
+    - 连载中作品（ongoing）：
+        如果当前是 done（之前 finished 时被推上去的） → 退回 watching + 清空 finished_at
+        否则不动（在不在前端"等待更新"栏由前端 split 决定）
+    - 没有 total_units / 无法判断：不动
+    """
     max_range_end = session.exec(
         select(func.max(ProgressEntry.range_end)).where(ProgressEntry.watching_id == watching.id)
     ).one()
 
-    reached_end = max_range_end is not None and max_range_end >= work.total_units
     changed = False
-    if reached_end:
-        if watching.finished_at is None:
-            watching.finished_at = datetime.now(timezone.utc).date()
-            changed = True
-        if watching.personal_status != PersonalStatus.done:
-            watching.personal_status = PersonalStatus.done
-            changed = True
+
+    if work.release_status == ReleaseStatus.finished and work.total_units is not None:
+        reached_end = max_range_end is not None and max_range_end >= work.total_units
+        if reached_end:
+            if watching.finished_at is None:
+                watching.finished_at = datetime.now(timezone.utc).date()
+                changed = True
+            if watching.personal_status != PersonalStatus.done:
+                watching.personal_status = PersonalStatus.done
+                changed = True
+        else:
+            if watching.finished_at is not None:
+                watching.finished_at = None
+                changed = True
+            if watching.personal_status == PersonalStatus.done:
+                watching.personal_status = PersonalStatus.watching
+                changed = True
     else:
-        if watching.finished_at is not None:
-            watching.finished_at = None
-            changed = True
         if watching.personal_status == PersonalStatus.done:
             watching.personal_status = PersonalStatus.watching
+            watching.finished_at = None
             changed = True
 
     if changed:
@@ -115,7 +129,16 @@ def create_entry(
     if watching.started_at is None:
         watching.started_at = data.date
         session.add(watching)
-    _sync_watching_completion(session, watching, work)
+
+    # 业务规则：从「想看」记进度 → 自动转「在看」
+    # 注意：必须放在 sync_watching_completion 之前——后者可能进一步把状态推到 done
+    # （场景：完结作品一次性记录全程 1-N 集，want → watching → done 同一次提交内完成）
+    if watching.personal_status == PersonalStatus.want:
+        watching.personal_status = PersonalStatus.watching
+        watching.updated_at = datetime.now(timezone.utc)
+        session.add(watching)
+
+    sync_watching_completion(session, watching, work)
 
     session.commit()
     session.refresh(entry)
@@ -162,7 +185,7 @@ def update_entry(
 
     # 仍可能引发自动扩 total_units
     _maybe_extend_total(session, work, entry.range_end)
-    _sync_watching_completion(session, watching, work)
+    sync_watching_completion(session, watching, work)
 
     session.add(entry)
     session.commit()
@@ -179,6 +202,6 @@ def delete_entry(entry_id: int, session: Session = Depends(get_session)):
     work = session.get(Work, watching.work_id) if watching else None
     session.delete(entry)
     if watching and work:
-        _sync_watching_completion(session, watching, work)
+        sync_watching_completion(session, watching, work)
     session.commit()
     return {"ok": True}

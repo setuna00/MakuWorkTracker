@@ -52,12 +52,11 @@ function TagsSection() {
   const queryClient = useQueryClient()
   const { data: tags = [] } = useQuery({ queryKey: ['tags'], queryFn: api.listTags })
   const [newName, setNewName] = useState('')
-  const [newColor, setNewColor] = useState('#2563eb')
   const [editing, setEditing] = useState(null)
   const [confirmDel, setConfirmDel] = useState(null)
 
   const create = useMutation({
-    mutationFn: () => api.createTag({ name: newName.trim(), color: newColor }),
+    mutationFn: () => api.createTag({ name: newName.trim() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] })
       setNewName('')
@@ -79,9 +78,7 @@ function TagsSection() {
     <div className="space-y-5">
       <div className="card p-5">
         <div className="text-sm font-medium mb-3 text-ink-700">{t('settings.tags.new')}</div>
-        <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
-          <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)}
-                 className="w-12 h-11 cursor-pointer" />
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
           <input type="text" placeholder={t('settings.tags.namePlaceholder')} value={newName}
                  onChange={(e) => setNewName(e.target.value)}
                  onKeyDown={(e) => e.key === 'Enter' && newName.trim() && create.mutate()} />
@@ -100,14 +97,11 @@ function TagsSection() {
           <div key={tg.id} className="flex items-center gap-3 px-4 py-3 hover:bg-paper-50 group">
             {editing?.id === tg.id ? (
               <>
-                <input type="color" value={editing.color}
-                       onChange={(e) => setEditing(s => ({ ...s, color: e.target.value }))}
-                       className="w-10 h-9 cursor-pointer" />
                 <input type="text" value={editing.name}
                        onChange={(e) => setEditing(s => ({ ...s, name: e.target.value }))}
                        className="flex-1 input-compact" />
                 <Button variant="primary"
-                        onClick={() => update.mutate({ id: tg.id, data: { name: editing.name, color: editing.color } })}>
+                        onClick={() => update.mutate({ id: tg.id, data: { name: editing.name } })}>
                   <Save size={13} /> {t('common.save')}
                 </Button>
                 <Button variant="ghost" onClick={() => setEditing(null)}>{t('common.cancel')}</Button>
@@ -117,7 +111,7 @@ function TagsSection() {
                 <TagChip color={tg.color}>{tg.name}</TagChip>
                 <span className="flex-1" />
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => setEditing({ id: tg.id, name: tg.name, color: tg.color })}
+                  <button onClick={() => setEditing({ id: tg.id, name: tg.name })}
                           className="p-2 hover:bg-paper-200 rounded-md text-ink-700">
                     <Edit2 size={13} />
                   </button>
