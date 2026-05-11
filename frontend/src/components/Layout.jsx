@@ -24,6 +24,11 @@ export function Layout({ children }) {
     location.pathname.startsWith('/works/') ||      // /works/new + /works/:id
     location.pathname === '/quick-record' ||
     location.pathname === '/settings'
+
+  // 手机端只在首页和作品库显示全局标题/搜索栏。
+  // 详情页、收藏夹、时间轴、设置页都有自己的页面标题/顶栏，避免双顶栏挤占空间。
+  const showMobileGlobalHeader = location.pathname === '/' || location.pathname === '/library'
+
   const { data: collections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
   const { data: tags = [] } = useQuery({ queryKey: ['tags'], queryFn: api.listTags })
   const { data: typesMeta = { types: [] } } = useQuery({
@@ -83,7 +88,7 @@ export function Layout({ children }) {
       </aside>
 
       <main className="flex-1 min-w-0 flex flex-col">
-        <div className="sticky top-0 z-10 bg-white border-b border-paper-200 h-[52px] px-4 md:px-8 lg:px-10 flex items-center gap-3">
+        <div className={`${showMobileGlobalHeader ? 'flex' : 'hidden'} md:flex sticky top-0 z-10 bg-white border-b border-paper-200 h-[52px] px-4 md:px-8 lg:px-10 items-center gap-3`}>
           <Link to="/" className="md:hidden font-medium text-brand-600">{t('app.name')}</Link>
           <div className="flex-1 flex items-center justify-end">
             <LibrarySearch navigate={navigate} tags={tags} collections={collections} typesMeta={typesMeta} />
@@ -205,7 +210,7 @@ function LibrarySearch({ navigate, tags, collections, typesMeta }) {
       <input
         type="search"
         placeholder={t('search.placeholder')}
-        className="input-compact !pl-9"
+        className="input-compact !pl-9 !text-base md:!text-[13px]"
         value={query}
         onFocus={() => setOpen(true)}
         onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
