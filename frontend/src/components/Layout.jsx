@@ -89,7 +89,7 @@ export function Layout({ children }) {
             <LibrarySearch navigate={navigate} tags={tags} collections={collections} typesMeta={typesMeta} />
           </div>
         </div>
-        <div className="px-4 md:px-8 lg:px-10 py-5 md:py-6 pb-[calc(4.5rem+max(env(safe-area-inset-bottom)-0.75rem,0.25rem))] md:pb-6 flex-1">{children}</div>
+        <div className="px-4 md:px-8 lg:px-10 py-5 md:py-6 mobile-content-bottom-pad md:pb-6 flex-1">{children}</div>
       </main>
 
       {/*
@@ -99,16 +99,18 @@ export function Layout({ children }) {
        * 现在:全部统一用 TabItem (NavLink),收藏夹去自己的 /favorites 页。
        * 桌面端那个 sidebar 折叠列表完全没动,所以 PC 行为不受影响。
        */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-paper-200 grid grid-cols-5 z-30 pb-[max(env(safe-area-inset-bottom)-0.75rem,0.25rem)]">
-        <TabItem to="/" icon={<Home size={22} />} label={t('nav.home')} />
-        <TabItem to="/library" icon={<Library size={22} />} label={t('nav.library')} />
-        <TabItem to="/favorites" icon={<Star size={22} />} label={t('nav.favorites')} />
-        <TabItem to="/timeline" icon={<Clock size={22} />} label={t('nav.timeline')} />
-        <TabItem to="/settings" icon={<Cog size={22} />} label={t('nav.settings')} />
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-paper-200 z-30 mobile-bottom-nav">
+        <div className="mobile-bottom-nav-inner grid grid-cols-5">
+          <TabItem to="/" icon={<Home size={22} />} label={t('nav.home')} />
+          <TabItem to="/library" icon={<Library size={22} />} label={t('nav.library')} />
+          <TabItem to="/favorites" icon={<Star size={22} />} label={t('nav.favorites')} />
+          <TabItem to="/timeline" icon={<Clock size={22} />} label={t('nav.timeline')} />
+          <TabItem to="/settings" icon={<Cog size={22} />} label={t('nav.settings')} />
+        </div>
       </nav>
 
       {!hideFab && (
-        <div className="fixed right-5 bottom-[calc(4.5rem+max(env(safe-area-inset-bottom)-0.75rem,0.25rem)+0.5rem)] md:bottom-6 z-40">
+        <div className="fixed right-5 mobile-fab-bottom md:bottom-6 z-40">
           {fabOpen && (
             <div className="absolute bottom-full mb-2 right-0 bg-white border border-paper-200 rounded-lg shadow-xl overflow-hidden min-w-[170px]">
               <button
@@ -275,7 +277,7 @@ function TabItem({ to, icon, label }) {
       to={to}
       end
       className={({ isActive }) =>
-        `flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
+        `h-full flex flex-col items-center justify-center gap-0.5 transition-colors ${
           isActive ? 'text-brand-600' : 'text-ink-500'
         }`
       }

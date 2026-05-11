@@ -197,3 +197,27 @@ a:not(.no-style) { color: inherit; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* iOS 主屏幕 standalone 模式底部安全区处理
+   外层 nav 负责填充 Home Indicator 安全区，内层固定按钮高度，避免图标区被安全区整体顶高。 */
+:root {
+  --ios-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-bottom-nav-height: 56px;
+  --mobile-bottom-extra: max(calc(var(--ios-safe-bottom) - 14px), 4px);
+}
+
+.mobile-bottom-nav {
+  padding-bottom: var(--mobile-bottom-extra);
+}
+
+.mobile-bottom-nav-inner {
+  height: var(--mobile-bottom-nav-height);
+}
+
+.mobile-content-bottom-pad {
+  padding-bottom: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-extra) + 12px);
+}
+
+.mobile-fab-bottom {
+  bottom: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-extra) + 12px);
+}
+
