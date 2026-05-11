@@ -1,19 +1,75 @@
-# 作品追踪 · Works Tracker
+# Maku · 作品追踪
 
-一个部署在自己 NAS 上的个人作品追踪应用。记录你看过的动漫、电影、电视剧、漫画、小说，按周目维度追踪进度，自动生成时间轴。
+[English](./README.en.md) | 简体中文
 
-灵感来自 Bangumi，但完全私有化、无登录、无外网依赖、所有数据在自己手里。
+Maku 是一个可以部署在自己电脑或 NAS 上的个人作品追踪应用，用来记录动漫、电影、电视剧、漫画、小说和其他作品的观看/阅读进度。
+
+它的核心目标是：**本地优先、私有可控、长期可维护**。你不需要注册账号，不依赖外部 API，所有数据都保存在你自己的数据库和文件目录里。你可以完全掌控自己的 SQLite 数据库、封面文件、标签体系和收藏夹结构。
+
+> 灵感来自 Bangumi 一类的作品收藏/进度管理体验，但更偏向自托管、个人工作流和数据自主。
 
 ---
 
-## 功能
+## 亮点
 
-- **作品库**：按类型管理（动漫 / 电影 / 电视剧 / 漫画 / 小说），自定义封面、简介、标签、收藏夹
-- **周目模型**：每个作品可有多个周目（一刷/二刷），独立的进度、评分、总评
-- **进度记录**：以"区间"形式记录（例如"看了第 5-7 集"），同日的多次记录自动合并显示
-- **时间轴**：所有进度按日期纵向展示，支持按类型筛选
-- **首页概览**：在看横滑、想看推荐、本月统计、最近动态
-- **数据安全**：每天 03:00 自动备份，保留 30 份；可随时手动备份和导出（JSON 含封面 / CSV）
+- **完全掌控自己的数据**：数据保存在本地 SQLite 数据库和本地封面目录中，可备份、导出、迁移。
+- **自定义标签系统**：自由创建标签、标签分组、别名，并用标签组织作品库。
+- **作品库管理**：支持动漫、电影、电视剧、漫画、小说和其他类型作品。
+- **多周目模型**：一个作品可以有多个周目，例如一刷、二刷；每个周目都有独立进度、评分和总评。
+- **区间式进度记录**：可以记录“第 5-7 集”这种连续进度，同一天多条记录会在显示层合并。
+- **时间轴**：按日期查看所有进度记录，方便回看自己什么时候看了什么。
+- **观看状态**：支持想看、在看、搁置、看完、弃坑。
+- **等待更新视图**：连载中且已经追平最新进度的作品会从“在看中”分离出来。
+- **补录记录**：可以登记以前看过的内容，补录不会污染时间轴和本月统计。
+- **收藏夹**：用自定义收藏夹管理专题列表，例如“年度最佳”“想补的漫画”“某作者合集”。
+- **移动端友好**：适合手机浏览器使用，也可以通过“添加到主屏幕”作为类 App 使用。
+- **数据备份与导出**：支持自动 SQLite 备份、手动备份、JSON 含封面导出和 CSV 导出。
+- **双语界面**：支持简体中文和英文界面。
+
+---
+
+## 未来计划
+
+- **月度观看/阅读报告**：按月份总结活跃作品、完成作品、观看/阅读量、标签分布等。
+- **年度报告**：生成全年作品统计、评分分布、最常看类型、最常用标签等。
+- 更细的筛选和统计视图。
+- 更完善的移动端体验。
+
+---
+
+## 技术栈
+
+- **后端**：FastAPI, SQLModel, SQLite
+- **前端**：React, Vite, Tailwind CSS, React Query, Zustand
+- **部署**：Docker / Docker Compose
+- **存储**：本地 SQLite 数据库 + 本地封面文件
+
+---
+
+## 快速开始
+
+在项目根目录运行：
+
+```bash
+docker compose up -d --build
+```
+
+然后打开：
+
+```text
+http://localhost:8765
+```
+
+常用命令：
+
+```bash
+docker compose ps
+docker compose logs -f works-tracker
+docker compose restart
+docker compose down
+```
+
+> 不要随便运行 `docker compose down -v`，除非你明确知道自己要删除 Docker volume。
 
 ---
 
@@ -21,81 +77,89 @@
 
 ### 1. 准备数据目录
 
-通过 SSH 或 File Station 在 NAS 上准备一个数据目录：
+在 NAS 上创建持久化数据目录：
 
 ```bash
 mkdir -p /share/Container/works-tracker/data
 ```
 
-> 你也可以用其他路径。如果改了路径，记得同步修改 `docker-compose.yml` 里的 `volumes`。
+你也可以使用其他路径。如果改了路径，请同步修改 `docker-compose.yml` 里的 `volumes`。
 
 ### 2. 上传项目
 
-把整个项目目录（解压后的 `works-tracker/`）通过 File Station 上传到 NAS 上的某个位置，例如 `/share/Container/works-tracker/app/`。
+把项目目录上传到 NAS，例如：
+
+```text
+/share/Container/works-tracker/app/works-tracker
+```
 
 ### 3. 构建并启动
 
-SSH 进 NAS，进入项目目录：
+SSH 进入 NAS：
 
 ```bash
-cd /share/Container/works-tracker/app
+cd /share/Container/works-tracker/app/works-tracker
 docker compose up -d --build
 ```
 
-首次构建大约需要 3-5 分钟（要拉镜像、装依赖、构建前端）。
+### 4. 访问应用
 
-### 4. 访问
-
-- 电脑浏览器：`http://<NAS_IP>:8765`
-- 手机 Safari/Chrome：同上，确保手机和 NAS 在同一局域网
-
-> 端口 `8765` 可以在 `docker-compose.yml` 的 `ports` 里改成你喜欢的。
-
-### 5. 检查容器状态
-
-```bash
-docker compose logs -f works-tracker     # 看日志
-docker compose ps                          # 看状态
-docker compose restart                     # 重启
-docker compose down                        # 停止
+```text
+http://<NAS_IP>:8765
 ```
+
+确保电脑或手机和 NAS 在同一局域网内。
 
 ---
 
 ## 数据与备份
 
-### 数据目录结构
+容器内运行数据保存在 `/app/data`，默认映射到：
 
-容器内的 `/app/data`（即 NAS 上的 `/share/Container/works-tracker/data`）：
-
+```text
+/share/Container/works-tracker/data
 ```
+
+典型结构：
+
+```text
 data/
-├── db.sqlite              # 主数据库
-├── covers/                # 作品封面（原图 + 缩略图）
-│   ├── xxxxx.jpg
+├── db.sqlite
+├── covers/
+│   ├── *.jpg / *.png / *.webp
 │   └── thumbs/
-│       └── xxxxx.webp
-├── backups/               # 自动备份的数据库副本
-│   └── db-20260503-030000.sqlite
-└── exports/               # （未使用，导出走流式）
+│       └── *.webp
+├── backups/
+│   └── db-YYYYMMDD-HHMMSS.sqlite
+└── exports/
 ```
 
 ### 自动备份
 
-应用启动后会注册一个定时任务，每天凌晨 03:00（按容器时区 `Australia/Sydney`，在 `docker-compose.yml` 里可改）执行一次 SQLite 热备份，保留最近 30 份。
+应用会在每天凌晨 03:00 执行 SQLite 备份，使用容器时区。默认时区在 `docker-compose.yml` 中设置：
 
-可以在「设置 → 数据」页面看到所有备份并下载，也可以点"立即备份"手动触发一次。
+```yaml
+environment:
+  - TZ=Australia/Sydney
+```
 
-### 手动导出
+可以改成自己的时区，例如：
 
-「设置 → 数据」里可以下载：
+```yaml
+environment:
+  - TZ=Asia/Shanghai
+```
 
-- **JSON 导出**：完整数据 + 所有封面图，打包成 zip。用于迁移或长期归档。
-- **CSV 导出**：作品 / 周目 / 进度记录三张表的 CSV。用于在 Excel 等工具里做自定义分析。
+### 手动备份与导出
 
-### 还原备份
+在 **设置 → 数据** 中可以：
 
-如果要从备份还原：
+- 创建手动备份
+- 下载已有数据库备份
+- 导出完整 JSON 数据和封面
+- 导出 CSV 文件用于 Excel 或其他分析工具
+
+### 从备份恢复
 
 ```bash
 docker compose down
@@ -106,112 +170,129 @@ docker compose up -d
 
 ---
 
-## 在 Windows 上本地预览（可选）
+## 本地开发
 
-你不需要在 Windows 上跑应用本身——直接部署到 NAS 用浏览器访问就行。但如果你想本地试试或开发：
+### 后端
 
-### 方式 A：Docker Desktop（推荐）
+需要 Python 3.12+。
 
-1. 安装 [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
-2. 在项目根目录开 PowerShell 或 cmd：
-   ```powershell
-   docker compose up --build
-   ```
-3. 访问 `http://localhost:8765`
-
-数据会保存在 PowerShell 当前目录下的 `./data` 子目录里（如果你想用 NAS 同样路径，需要改 `docker-compose.yml`）。
-
-### 方式 B：直接跑 Python + Node（开发模式）
-
-需要 Python 3.12+ 和 Node 20+。
-
-后端：
 ```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
-$env:WT_DATA_DIR = "$pwd\..\data"   # 数据目录指向项目内
+$env:WT_DATA_DIR = "$pwd\..\data"
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-前端（开新的 PowerShell）：
+### 前端
+
+需要 Node 20+。
+
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-然后访问 `http://localhost:5173`。前端会代理 `/api` 到 `http://localhost:8000`。
+打开：
+
+```text
+http://localhost:5173
+```
+
+Vite 开发服务器会把 API 请求代理到后端。
 
 ---
 
 ## 项目结构
 
-```
+```text
 works-tracker/
-├── backend/                    # FastAPI 后端
+├── backend/
 │   ├── app/
-│   │   ├── main.py            # 应用入口
-│   │   ├── config.py          # 配置（环境变量 WT_*）
-│   │   ├── db.py              # SQLite 引擎
-│   │   ├── schemas.py         # Pydantic 请求/响应模型
-│   │   ├── models/            # ORM 模型（Work / Watching / ProgressEntry / Tag / Collection）
-│   │   ├── routers/           # API 路由（works/watchings/progress/tags/collections/timeline/admin/meta）
-│   │   └── utils/             # 图片处理、备份调度
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── schemas.py
+│   │   ├── models/
+│   │   ├── routers/
+│   │   └── utils/
 │   └── requirements.txt
-├── frontend/                   # React 前端
+├── frontend/
 │   ├── src/
-│   │   ├── App.jsx            # 路由
-│   │   ├── main.jsx           # 入口
-│   │   ├── lib/               # API 客户端、格式化工具
-│   │   ├── components/        # 通用组件（Layout、Modal、WorkCard、QuickRecordModal）
-│   │   └── pages/             # 页面（首页、作品库、详情、时间轴、新建、快速记录、设置）
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   ├── lib/
+│   │   ├── components/
+│   │   └── pages/
 │   └── package.json
-├── Dockerfile                  # 多阶段：构建前端 + 打包后端
+├── Dockerfile
 ├── docker-compose.yml
-└── README.md
+├── README.md
+├── README.en.md
+└── LICENSE
 ```
 
 ---
 
 ## 数据模型简介
 
-```
-Work（作品 = main 分支）
-  ├── title, type, cover, description, total_units, creators (JSON), tags, collections
-  └── Watching[]（周目 = branch）
+```text
+Work
+  ├── title, type, cover, description, release_status, total_units, creators
+  ├── tags[]
+  ├── collections[]
+  └── Watching[]
         ├── round_number, label, personal_status, rating, overall_review
-        └── ProgressEntry[]（进度日志）
-              └── date, range_start, range_end, note
+        └── ProgressEntry[]
+              └── date, range_start, range_end, note, is_backfill
 ```
 
-- 一个作品至少有 1 个周目（创建时自动建 main 周目）
-- 重看 = 创建一个新周目（round_number+1），独立追踪
-- 进度记录始终以"区间"存储；同日同周目的多条记录在显示层自动合并为 `[min, max]`
-- 连载中的作品如果记录的 `range_end` 超过 `total_units`，会自动扩展总数
+说明：
+
+- 一个作品至少有一个周目。
+- 重看/重读通过新增周目实现。
+- 动漫、电视剧、漫画、小说使用区间进度。
+- 电影按已观看/未观看记录，不使用区间进度。
+- 连载中作品如果记录进度超过当前总数，会自动扩展 `total_units`。
+- 完结作品进度达到总数后，可以自动变为“看完”。
+- 如果完结作品后来把总数改大，已完成的周目会自动退回“在看”。
 
 ---
 
-## 常见问题
+## Public 前检查
 
-**Q: 为什么时区是 Australia/Sydney？**
-A: 因为我在悉尼。可以在 `docker-compose.yml` 把 `TZ` 改成你所在的时区，例如 `Asia/Shanghai`。
+如果你准备把仓库设为公开，请先确认：
 
-**Q: 数据真的不会上传到任何地方吗？**
-A: 是的。整个应用只在你的 NAS 上运行，没有外部 API 调用，没有遥测，没有登录。代码完全公开你可以自己审。
+- `data/`, `db.sqlite`, `covers/`, `backups/`, `exports/`, `.env`, `.venv/`, `node_modules/` 和构建产物没有被提交。
+- `git status` 没有意外文件。
+- 如果这个仓库以前存过私人数据，请检查 commit history。
+- 如果要暴露到公网，请放在 VPN、反向代理或认证层之后。Maku 默认是单用户内网应用，不自带登录系统。
+- 如果希望别人可以使用、修改和分发代码，请保留 `LICENSE` 文件。
 
-**Q: 一定要装 Docker 吗？**
-A: 推荐用 Docker（QNAP Container Station 自带）。不想用 Docker 的话也可以参考"方式 B"直接跑 Python+Node。
+---
 
-**Q: 需要登录吗？**
-A: 不需要。设计是单用户内网使用，无认证。如果你想暴露到公网，请自行加反向代理 + 认证（不建议）。
+## FAQ
 
-**Q: 多设备同时操作会不会冲突？**
-A: SQLite WAL 模式支持并发读，单写。同时编辑同一条记录时是"最后写入获胜"。单用户场景下基本无感。
+### 数据会上传到外部服务吗？
+
+不会。Maku 设计为本地/NAS 自托管应用，不需要登录，不使用遥测，不依赖第三方 API。
+
+### 可以直接暴露到公网吗？
+
+不建议。Maku 默认面向单用户局域网使用，没有内置认证。如果你要公网访问，请自行配置可信的反向代理、VPN 或认证层。
+
+### 多个设备可以同时用吗？
+
+可以，只要它们能访问同一个部署实例。SQLite 支持并发读取，写入会串行处理。对个人使用来说通常足够。
+
+### 为什么默认时区是 Australia/Sydney？
+
+默认部署配置使用 `Australia/Sydney`。可以在 `docker-compose.yml` 里修改 `TZ`。
 
 ---
 
 ## License
 
-私有项目，自用。
+MIT License. See [LICENSE](./LICENSE).
