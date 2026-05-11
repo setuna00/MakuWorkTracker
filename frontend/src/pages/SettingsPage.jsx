@@ -158,6 +158,8 @@ function TagsSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] })
       setConfirmDelTag(null)
+      setEditingTag(null)
+      setEditTagError('')
     },
   })
 
@@ -293,44 +295,43 @@ function TagsSection() {
             )}
           </div>
 
-          <div className="divide-y divide-paper-200">
-            {(tagsByGroup[g.id] || []).length === 0 && (
+          <div>
+            {(tagsByGroup[g.id] || []).length === 0 ? (
               <div className="px-4 py-3 text-sm text-ink-400">{t('settings.tags.empty')}</div>
-            )}
-            {(tagsByGroup[g.id] || []).map(tg => (
-              <div key={tg.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-paper-50 group/row">
-                <TagChip>{tg.name}</TagChip>
-                {tg.aliases && tg.aliases.length > 0 && (
-                  <span className="text-xs text-ink-400 truncate" title={tg.aliases.join(', ')}>
-                    ({tg.aliases.join(', ')})
-                  </span>
-                )}
-                <span className="flex-1" />
-                <div className="flex gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => {
-                      setEditTagError('')
-                      setEditingTag({
-                        id: tg.id,
-                        name: tg.name,
-                        group_id: tg.group_id,
-                        aliases: aliasArrayToString(tg.aliases),
-                      })
-                    }}
-                    className="p-1.5 hover:bg-paper-200 rounded-md text-ink-700"
-                  >
-                    <Edit2 size={12} />
-                  </button>
-                  <button
-                    onClick={() => setConfirmDelTag(tg)}
-                    className="p-1.5 hover:bg-red-50 text-red-600 rounded-md"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
+            ) : (
+              <div className="px-4 py-3 flex flex-wrap gap-2">
+                {(tagsByGroup[g.id] || []).map(tg => (
+                  <div key={tg.id} className="inline-flex">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditTagError('')
+                        setEditingTag({
+                          id: tg.id,
+                          name: tg.name,
+                          group_id: tg.group_id,
+                          aliases: aliasArrayToString(tg.aliases),
+                        })
+                      }}
+                      title={
+                        tg.aliases && tg.aliases.length > 0
+                          ? `${tg.name} (${tg.aliases.join(', ')})`
+                          : tg.name
+                      }
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full bg-paper-100 border border-paper-200 text-ink-700 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 transition-colors cursor-pointer"
+                    >
+                      <span>{tg.name}</span>
+                      {tg.aliases && tg.aliases.length > 0 && (
+                        <span className="text-[10px] text-ink-400">
+                          ·{tg.aliases.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-paper-50/50">
+            )}
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-paper-50/50 border-t border-paper-200">
               <input
                 type="text"
                 placeholder={t('settings.tags.namePlaceholder')}
@@ -410,27 +411,36 @@ function TagsSection() {
               <div className="text-xs text-ink-500 mt-1">{t('settings.tags.aliases.hint')}</div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => { setEditingTag(null); setEditTagError('') }}>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                variant="primary"
-                disabled={!editingTag.name.trim() || updateTag.isPending}
-                onClick={() => {
-                  setEditTagError('')
-                  updateTag.mutate({
-                    id: editingTag.id,
-                    data: {
-                      name: editingTag.name.trim(),
-                      group_id: editingTag.group_id,
-                      aliases: aliasStringToArray(editingTag.aliases),
-                    },
-                  })
-                }}
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelTag(editingTag)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
               >
-                <Save size={13} /> {t('common.save')}
-              </Button>
+                <Trash2 size={13} /> {t('common.delete')}
+              </button>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => { setEditingTag(null); setEditTagError('') }}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={!editingTag.name.trim() || updateTag.isPending}
+                  onClick={() => {
+                    setEditTagError('')
+                    updateTag.mutate({
+                      id: editingTag.id,
+                      data: {
+                        name: editingTag.name.trim(),
+                        group_id: editingTag.group_id,
+                        aliases: aliasStringToArray(editingTag.aliases),
+                      },
+                    })
+                  }}
+                >
+                  <Save size={13} /> {t('common.save')}
+                </Button>
+              </div>
             </div>
           </div>
         )}

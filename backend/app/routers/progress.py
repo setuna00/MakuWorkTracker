@@ -19,12 +19,25 @@ def _ensure_watching(session: Session, watching_id: int) -> Watching:
 
 
 def _validate_range(work: Work, range_start, range_end):
-    """根据作品类型校验 range 字段。"""
+    """根据作品类型校验 range 字段。
+
+    完结作品 + total_units 已设时，range_end 不允许超过 total_units。
+    连载中作品的扩展逻辑在 _maybe_extend_total 处理。
+    """
     if work.type in TYPES_WITH_RANGE_PROGRESS:
         if range_start is None or range_end is None:
             raise HTTPException(400, "该类型作品必须填写进度区间")
         if range_start < 1 or range_end < range_start:
             raise HTTPException(400, "进度区间无效")
+        # 完结作品：禁止超过最大集数
+        if (work.release_status == ReleaseStatus.finished
+                and work.total_units is not None
+                and range_end > work.total_units):
+            raise HTTPException(
+                400,
+                f"作品已完结，最多 {work.total_units} {work.unit_label or '集'}，"
+                f"当前输入 {range_end} 超出上限"
+            )
 
 
 def _maybe_extend_total(session: Session, work: Work, range_end):

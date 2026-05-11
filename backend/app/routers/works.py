@@ -392,6 +392,17 @@ def create_work(
             main_watching.updated_at = datetime.now(timezone.utc)
             session.add(main_watching)
 
+        # 完结作品：禁止 backfill 超过最大集数
+        if (work.release_status == ReleaseStatus.finished
+                and work.total_units is not None
+                and r_end is not None
+                and r_end > work.total_units):
+            raise HTTPException(
+                400,
+                f"作品已完结，最多 {work.total_units} {work.unit_label or '集'}，"
+                f"当前输入 {r_end} 超出上限"
+            )
+
         # 连载中作品 + range_end > total → 自动扩 total
         if (work.release_status == ReleaseStatus.ongoing
                 and r_end is not None

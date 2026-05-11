@@ -152,6 +152,7 @@ export default function WorkDetailPage() {
                 <div className="flex flex-wrap gap-1.5 items-center">
                   {work.collections.map(c => (
                     <TagChip key={`c-${c.id}`} color={c.border_color} colored
+                             className="!rounded-full !px-2.5 !py-1 !text-xs"
                              onClick={() => navigate(`/library?collection=${c.id}`)}
                              title={t('workDetail.tagFavoriteHint')}>
                       ★ {c.name}
@@ -163,6 +164,7 @@ export default function WorkDetailPage() {
                 <div className="flex flex-wrap gap-1.5 items-center">
                   {work.tags.map(tg => (
                     <TagChip key={tg.id}
+                             className="!rounded-full !px-2.5 !py-1 !text-xs"
                              onClick={() => navigate(`/library?tag=${tg.id}`)}
                              title={t('workDetail.tagTagHint')}>
                       {tg.name}
@@ -537,6 +539,23 @@ function ProgressDisplay({ watching, unitLabel, totalUnits, isMovie }) {
             ) : (
               <div className="text-xs text-ink-400">{t('workDetail.progressNoTotal', { unit: unitLabel })}</div>
             )}
+          </>
+        ) : totalUnits != null ? (
+          <>
+            <div className="flex items-baseline gap-1.5 tabular-nums">
+              <span className="text-xl font-semibold text-ink-400 leading-none">0</span>
+              <span className="text-sm text-ink-400 leading-none">/</span>
+              <span className="text-sm font-medium text-ink-500 leading-none">{totalUnits}</span>
+              {unitLabel && (
+                <span className="ml-1 text-xs font-medium text-ink-500 leading-none">{unitLabel}</span>
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="h-1.5 bg-paper-200 rounded-full overflow-hidden">
+                <div className="h-full bg-paper-300" style={{ width: '0%' }} />
+              </div>
+              <div className="text-xs text-ink-400 tabular-nums">{t('workDetail.progressNotStarted')}</div>
+            </div>
           </>
         ) : (
           <div className="text-xl font-semibold text-ink-400 leading-none">{t('workDetail.progressNotStarted')}</div>

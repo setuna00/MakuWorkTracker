@@ -64,8 +64,19 @@ export function BackfillModal({ work, watching, typesMeta, onClose }) {
 
         {hasRange && (
           <Field label={t('backfill.toLabel', { unit: unitLabel })}>
-            <input type="number" min={1} value={rangeEnd}
-                   onChange={(e) => setRangeEnd(e.target.value)} className="!w-32" />
+            <input
+              type="number"
+              min={1}
+              max={work.total_units || undefined}
+              value={rangeEnd}
+              onChange={(e) => setRangeEnd(e.target.value)}
+              className="!w-32"
+            />
+            {work.total_units != null && (
+              <div className="text-xs text-ink-400 mt-1">
+                {t('backfill.totalHint', { total: work.total_units, unit: unitLabel })}
+              </div>
+            )}
           </Field>
         )}
 

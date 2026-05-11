@@ -163,6 +163,7 @@ const zh = {
   'backfill.noteLabel': '备注（选填）',
   'backfill.submit': '保存补录',
   'backfill.invalidRange': '请填写有效的进度数',
+  'backfill.totalHint': '共 {total} {unit}',
 
   // New work
   'newWork.title': '新建作品',
@@ -523,6 +524,7 @@ const en = {
   'backfill.noteLabel': 'Note (optional)',
   'backfill.submit': 'Save backfill',
   'backfill.invalidRange': 'Please enter a valid progress number',
+  'backfill.totalHint': 'Total: {total} {unit}',
 
   // New work
   'newWork.title': 'New Work',

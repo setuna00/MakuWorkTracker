@@ -30,6 +30,7 @@ export default function LibraryPage() {
     queryFn: () => api.listTags({ in_collection: searchParams.get('collection') }),
   })
   const { data: collections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
+  const { data: tagGroups = [] } = useQuery({ queryKey: ['tagGroups'], queryFn: api.listTagGroups })
 
   const tagIds = searchParams.getAll('tag').map(s => Number(s)).filter(n => !Number.isNaN(n))
 
@@ -159,34 +160,32 @@ export default function LibraryPage() {
           </FilterRow>
 
           {tags.length > 0 && (
-            <FilterRow
-              label={tagIds.length > 0
-                ? t('library.filter.tagsSelected', { n: tagIds.length })
-                : t('library.filter.tags')}
-              extra={tagIds.length > 0 && (
-                <button onClick={clearTags} className="text-[11px] text-ink-500 hover:text-brand-700">
-                  {t('common.clear')}
-                </button>
-              )}
-            >
-              {tags.map(ta => (
-                <FilterChip key={ta.id} active={tagIds.includes(ta.id)}
-                            onClick={() => toggleTag(ta.id)}
-                            title={`${ta.name} (${ta.work_count})`}>
-                  {truncate(ta.name)}
-                  <span className={`ml-1 text-[10px] ${tagIds.includes(ta.id) ? 'opacity-80' : 'text-ink-400'}`}>
-                    {ta.work_count}
-                  </span>
-                </FilterChip>
-              ))}
-            </FilterRow>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[11px] text-ink-500 font-medium uppercase tracking-wider">
+                  {tagIds.length > 0
+                    ? t('library.filter.tagsSelected', { n: tagIds.length })
+                    : t('library.filter.tags')}
+                </div>
+              </div>
+              <TagGroupedList
+                tags={tags}
+                tagGroups={tagGroups}
+                tagIds={tagIds}
+                toggleTag={toggleTag}
+              />
+            </div>
           )}
 
-          {(filters.q || activeFilterCount > 0) && (
-            <button onClick={() => setSearchParams({})}
-                    className="text-xs text-ink-500 hover:text-brand-700 flex items-center gap-1 transition-colors">
-              <X size={11} /> {t('library.filter.clearAll')}
-            </button>
+          {tagIds.length > 0 && (
+            <div className="flex justify-end">
+              <button
+                onClick={clearTags}
+                className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 flex items-center gap-1 transition-colors"
+              >
+                <X size={12} /> 清除筛选
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -255,5 +254,76 @@ function FilterChip({ active, onClick, children, title }) {
             className="px-2.5 py-1 rounded text-xs font-medium border transition-colors bg-white text-ink-700 border-paper-300 hover:border-brand-400 hover:text-brand-700">
       {children}
     </button>
+  )
+}
+
+function TagGroupedList({ tags, tagGroups, tagIds, toggleTag }) {
+  // 按 group_id 分桶。group_id 为 null 的归入默认组。
+  // 找到默认组 id 作为 null 的归属。
+  const defaultGroupId = tagGroups.find(g => g.is_default)?.id ?? null
+
+  // 按 sort_order 排序的 group 列表
+  const orderedGroups = [...tagGroups].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+
+  // 把 tags 按 group_id 分桶
+  const tagsByGroup = {}
+  for (const ta of tags) {
+    const gid = ta.group_id ?? defaultGroupId
+    if (!tagsByGroup[gid]) tagsByGroup[gid] = []
+    tagsByGroup[gid].push(ta)
+  }
+
+  // 如果只有一个分组（无论是不是默认组），不显示分组标题，平铺
+  const showGroupLabels = orderedGroups.length > 1
+
+  // 只渲染有 tag 的分组
+  const groupsWithTags = orderedGroups.filter(g => (tagsByGroup[g.id] || []).length > 0)
+
+  // 兜底：如果 tagGroups 还没加载（首次渲染），就把所有 tag 平铺
+  if (groupsWithTags.length === 0) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {tags.map(ta => (
+          <FilterChip
+            key={ta.id}
+            active={tagIds.includes(ta.id)}
+            onClick={() => toggleTag(ta.id)}
+            title={`${ta.name} (${ta.work_count})`}
+          >
+            {truncate(ta.name)}
+            <span className={`ml-1 text-[10px] ${tagIds.includes(ta.id) ? 'opacity-80' : 'text-ink-400'}`}>
+              {ta.work_count}
+            </span>
+          </FilterChip>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {groupsWithTags.map(g => (
+        <div key={g.id}>
+          {showGroupLabels && (
+            <div className="text-[10px] text-ink-400 mb-1.5 font-medium">{g.name}</div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {(tagsByGroup[g.id] || []).map(ta => (
+              <FilterChip
+                key={ta.id}
+                active={tagIds.includes(ta.id)}
+                onClick={() => toggleTag(ta.id)}
+                title={`${ta.name} (${ta.work_count})`}
+              >
+                {truncate(ta.name)}
+                <span className={`ml-1 text-[10px] ${tagIds.includes(ta.id) ? 'opacity-80' : 'text-ink-400'}`}>
+                  {ta.work_count}
+                </span>
+              </FilterChip>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
