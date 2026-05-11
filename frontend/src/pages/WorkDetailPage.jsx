@@ -663,6 +663,12 @@ function StatusEditor({ watching }) {
       idleText: 'text-blue-600',
     },
     {
+      key: 'on_hold',
+      activeBg: 'bg-amber-600',
+      activeRing: 'ring-amber-600',
+      idleText: 'text-amber-600',
+    },
+    {
       key: 'done',
       activeBg: 'bg-green-600',
       activeRing: 'ring-green-600',
@@ -682,7 +688,7 @@ function StatusEditor({ watching }) {
   return (
     <div className={INFO_CARD_BASE}>
       <div className={INFO_CARD_TITLE}>{t('workDetail.watchStatus')}</div>
-      <div className="grid w-full grid-cols-4 gap-1 rounded-lg bg-paper-100 p-1">
+      <div className="grid w-full grid-cols-5 gap-1 rounded-lg bg-paper-100 p-1">
         {STATUSES.map(s => {
           const active = watching.personal_status === s.key
           return (
@@ -690,7 +696,7 @@ function StatusEditor({ watching }) {
               key={s.key}
               onClick={() => update.mutate(s.key)}
               className={[
-                'h-8 rounded-md text-sm font-semibold transition-all duration-150',
+                'h-8 rounded-md text-[13px] font-semibold transition-all duration-150',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
                 active
                   ? `${s.activeBg} text-white shadow-sm ${s.activeRing}`

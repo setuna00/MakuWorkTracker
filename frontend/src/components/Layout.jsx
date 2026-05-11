@@ -47,7 +47,7 @@ export function Layout({ children }) {
       >
         <div className="h-[52px] px-5 flex items-center border-b border-paper-200">
           <Link to="/" className="font-semibold text-base text-brand-600 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-md bg-brand-600 text-white flex items-center justify-center text-xs font-bold">作</span>
+            <span className="w-7 h-7 rounded-md bg-brand-600 text-white flex items-center justify-center text-xs font-bold">M</span>
             {t('app.name')}
           </Link>
         </div>

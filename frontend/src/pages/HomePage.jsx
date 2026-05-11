@@ -90,6 +90,16 @@ export default function HomePage() {
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-8">
+      <Section title={t('home.monthlyOverview')}>
+        <div className="card p-6">
+          <div className="grid grid-cols-3 divide-x divide-paper-200">
+            <StatBlock label={t('home.stat.entries')} value={monthly?.entries_count ?? '-'} unit={t('home.stat.unitEntries')} />
+            <StatBlock label={t('home.stat.activeWorks')} value={monthly?.active_works ?? '-'} unit={t('home.stat.unitWorks')} href={`/library?active=${monthQuery}`} />
+            <StatBlock label={t('home.stat.newWorks')} value={monthly?.new_works ?? '-'} unit={t('home.stat.unitWorks')} href={`/library?new=${monthQuery}`} />
+          </div>
+        </div>
+      </Section>
+
       <Section
         title={t('home.watching', { count: watching.length })}
         action={
@@ -146,15 +156,7 @@ export default function HomePage() {
         )}
       </Section>
 
-      <Section title={t('home.monthlyOverview')}>
-        <div className="card p-6">
-          <div className="grid grid-cols-3 divide-x divide-paper-200">
-            <StatBlock label={t('home.stat.entries')} value={monthly?.entries_count ?? '-'} unit={t('home.stat.unitEntries')} />
-            <StatBlock label={t('home.stat.activeWorks')} value={monthly?.active_works ?? '-'} unit={t('home.stat.unitWorks')} href={`/library?active=${monthQuery}`} />
-            <StatBlock label={t('home.stat.newWorks')} value={monthly?.new_works ?? '-'} unit={t('home.stat.unitWorks')} href={`/library?new=${monthQuery}`} />
-          </div>
-        </div>
-      </Section>
+
 
       <Section title={t('home.recentActivity')}>
         {(!recent || recent.days?.length === 0) ? (

@@ -39,15 +39,21 @@ def get_types_meta():
 
 @router.get("/statuses")
 def get_statuses():
+    personal_status_meta = {
+        PersonalStatus.want: {"label": "想看", "color": "#888780"},
+        PersonalStatus.watching: {"label": "在看", "color": "#0F6E56"},
+        PersonalStatus.on_hold: {"label": "搁置", "color": "#A16207"},
+        PersonalStatus.done: {"label": "看完", "color": "#185FA5"},
+        PersonalStatus.dropped: {"label": "弃坑", "color": "#A32D2D"},
+    }
+
     return {
         "release_statuses": [
-            {"value": "ongoing", "label": "连载中"},
-            {"value": "finished", "label": "完结"},
+            {"value": ReleaseStatus.ongoing.value, "label": "连载中"},
+            {"value": ReleaseStatus.finished.value, "label": "完结"},
         ],
         "personal_statuses": [
-            {"value": "want", "label": "想看", "color": "#888780"},
-            {"value": "watching", "label": "在看", "color": "#0F6E56"},
-            {"value": "done", "label": "看完", "color": "#185FA5"},
-            {"value": "dropped", "label": "弃坑", "color": "#A32D2D"},
+            {"value": status.value, **personal_status_meta[status]}
+            for status in PersonalStatus
         ],
     }

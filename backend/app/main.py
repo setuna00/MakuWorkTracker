@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     stop_scheduler()
 
 
-app = FastAPI(title="Works Tracker", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Maku - Works Tracker", version="1.5.0", lifespan=lifespan)
 
 # CORS（开发时前端 5173，生产同源不需要但保留无害）
 app.add_middleware(

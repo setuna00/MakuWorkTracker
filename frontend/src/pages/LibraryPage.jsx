@@ -151,7 +151,7 @@ export default function LibraryPage() {
         <div className="card p-4 md:p-6 mb-5 space-y-4 md:space-y-5">
           <FilterRow label={t('library.filter.personalStatus')}>
             <FilterChip active={!filters.personal_status} onClick={() => setFilter('personal_status', '')}>{t('common.all')}</FilterChip>
-            {['want', 'watching', 'done', 'dropped'].map(s => (
+            {['want', 'watching', 'on_hold', 'done', 'dropped'].map(s => (
               <FilterChip key={s} active={filters.personal_status === s}
                           onClick={() => setFilter('personal_status', s)}>
                 {translateStatus(s, t)}

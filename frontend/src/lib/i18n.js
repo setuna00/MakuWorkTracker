@@ -21,7 +21,7 @@ import { persist } from 'zustand/middleware'
 
 const zh = {
   // App
-  'app.name': '作品追踪',
+  'app.name': 'Maku',
   'app.subtitle': 'Works Tracker',
 
   // Nav / Tabs
@@ -270,6 +270,7 @@ const zh = {
   // Status enum (personal_status)
   'status.want': '想看',
   'status.watching': '在看',
+  'status.on_hold': '搁置',
   'status.done': '看完',
   'status.dropped': '弃坑',
 
@@ -384,7 +385,7 @@ const zh = {
 
 const en = {
   // App
-  'app.name': 'Works Tracker',
+  'app.name': 'Maku',
   'app.subtitle': 'Works Tracker',
 
   // Nav / Tabs
@@ -634,6 +635,7 @@ const en = {
   // Status enum
   'status.want': 'Want',
   'status.watching': 'Watching',
+  'status.on_hold': 'On hold',
   'status.done': 'Done',
   'status.dropped': 'Dropped',
 

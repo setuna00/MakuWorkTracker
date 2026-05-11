@@ -67,7 +67,7 @@ def export_json(session: Session = Depends(get_session)):
 
     data = {
         "exported_at": datetime.utcnow().isoformat(),
-        "version": "1.3.0",
+        "version": "1.5.0",
         "works": [],
         "watchings": [_model_to_dict(w) for w in watchings],
         "progress_entries": [_model_to_dict(e) for e in entries],
@@ -172,7 +172,7 @@ def admin_info(session: Session = Depends(get_session)):
     entries_count = session.exec(select(ProgressEntry)).all()
     db_size = settings.db_path.stat().st_size if settings.db_path.exists() else 0
     return {
-        "version": "1.3.0",
+        "version": "1.5.0",
         "works_count": len(works_count),
         "entries_count": len(entries_count),
         "db_size_bytes": db_size,

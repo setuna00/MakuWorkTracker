@@ -17,10 +17,11 @@ class ReleaseStatus(str, Enum):
 
 
 class PersonalStatus(str, Enum):
-    want = "want"        # 想看
+    want = "want"          # 想看
     watching = "watching"  # 在看
-    done = "done"        # 看完
-    dropped = "dropped"  # 弃坑
+    on_hold = "on_hold"    # 搁置：有进度但暂时不看，不进入"在看"和"等待更新"列表
+    done = "done"          # 看完
+    dropped = "dropped"    # 弃坑
 
 
 # 类型 -> 单位显示名（中文）

@@ -56,10 +56,12 @@ def sync_watching_completion(session: Session, watching: Watching, work: Work):
     规则：
     - 完结作品（finished + total_units 已设）：
         cur >= total → done + finished_at = today
-        cur <  total → 退回 watching + 清空 finished_at（应对 total 被改大、退回的情况）
+          （从 watching / on_hold / want 任一状态都会被推到 done）
+        cur <  total → 如果当前是 done 则退回 watching + 清空 finished_at
+          （应对 total 被改大；on_hold/dropped 不动，因为是用户主动选择）
     - 连载中作品（ongoing）：
         如果当前是 done（之前 finished 时被推上去的） → 退回 watching + 清空 finished_at
-        否则不动（在不在前端"等待更新"栏由前端 split 决定）
+        其他状态不动（on_hold/dropped 都是用户主动选择，不自动改）
     - 没有 total_units / 无法判断：不动
     """
     max_range_end = session.exec(
@@ -78,13 +80,15 @@ def sync_watching_completion(session: Session, watching: Watching, work: Work):
                 watching.personal_status = PersonalStatus.done
                 changed = True
         else:
-            if watching.finished_at is not None:
-                watching.finished_at = None
-                changed = True
+            # 只有 done 状态才会被退回；on_hold/dropped 是用户主动选择，不动
             if watching.personal_status == PersonalStatus.done:
                 watching.personal_status = PersonalStatus.watching
                 changed = True
+            if watching.finished_at is not None:
+                watching.finished_at = None
+                changed = True
     else:
+        # 连载中：只把 done 退回 watching；on_hold/dropped 不动
         if watching.personal_status == PersonalStatus.done:
             watching.personal_status = PersonalStatus.watching
             watching.finished_at = None
