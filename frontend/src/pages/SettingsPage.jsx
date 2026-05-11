@@ -1,14 +1,37 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Edit2, Save, Download, ArrowUp, ArrowDown, Check } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useT, useLocaleStore, SUPPORTED_LOCALES } from '../lib/i18n'
 import { Button, ConfirmDialog, Modal } from '../components/Modal'
 import { TagChip } from '../components/TagChip'
 
+const SETTINGS_SECTIONS = ['tags', 'collections', 'appearance', 'data', 'about']
+
+function sectionFromParams(searchParams) {
+  const requested = searchParams.get('tab') || searchParams.get('section')
+  return SETTINGS_SECTIONS.includes(requested) ? requested : 'tags'
+}
+
 export default function SettingsPage() {
   const t = useT()
-  const [section, setSection] = useState('tags')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const searchKey = searchParams.toString()
+  const [section, setSection] = useState(() => sectionFromParams(searchParams))
+
+  useEffect(() => {
+    setSection(sectionFromParams(searchParams))
+  }, [searchKey])
+
+  const switchSection = (nextSection) => {
+    setSection(nextSection)
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('section')
+    if (nextSection === 'tags') nextParams.delete('tab')
+    else nextParams.set('tab', nextSection)
+    setSearchParams(nextParams, { replace: true })
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -16,11 +39,11 @@ export default function SettingsPage() {
       <div className="text-sm text-ink-500 mb-6">{t('settings.subtitle')}</div>
 
       <div className="flex gap-1 mb-6 border-b border-paper-200 overflow-x-auto scrollbar-hide">
-        <SectionTab active={section === 'tags'} onClick={() => setSection('tags')}>{t('settings.tab.tags')}</SectionTab>
-        <SectionTab active={section === 'collections'} onClick={() => setSection('collections')}>{t('settings.tab.collections')}</SectionTab>
-        <SectionTab active={section === 'appearance'} onClick={() => setSection('appearance')}>{t('settings.tab.appearance')}</SectionTab>
-        <SectionTab active={section === 'data'} onClick={() => setSection('data')}>{t('settings.tab.data')}</SectionTab>
-        <SectionTab active={section === 'about'} onClick={() => setSection('about')}>{t('settings.tab.about')}</SectionTab>
+        <SectionTab active={section === 'tags'} onClick={() => switchSection('tags')}>{t('settings.tab.tags')}</SectionTab>
+        <SectionTab active={section === 'collections'} onClick={() => switchSection('collections')}>{t('settings.tab.collections')}</SectionTab>
+        <SectionTab active={section === 'appearance'} onClick={() => switchSection('appearance')}>{t('settings.tab.appearance')}</SectionTab>
+        <SectionTab active={section === 'data'} onClick={() => switchSection('data')}>{t('settings.tab.data')}</SectionTab>
+        <SectionTab active={section === 'about'} onClick={() => switchSection('about')}>{t('settings.tab.about')}</SectionTab>
       </div>
 
       {section === 'tags' && <TagsSection />}
@@ -572,8 +595,8 @@ function CollectionsSection() {
               </>
             ) : (
               <>
-                <span className="text-sm font-medium flex-1">★ {c.name}</span>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-base font-semibold text-ink-900 flex-1 truncate">{c.name}</span>
+                <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button onClick={() => moveItem(idx, -1)} disabled={idx === 0}
                           className="p-2 hover:bg-paper-200 rounded-md text-ink-700 disabled:opacity-30">
                     <ArrowUp size={13} />

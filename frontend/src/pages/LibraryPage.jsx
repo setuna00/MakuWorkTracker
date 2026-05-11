@@ -148,7 +148,7 @@ export default function LibraryPage() {
       </div>
 
       {filterOpen && (
-        <div className="card p-5 mb-5 space-y-4">
+        <div className="card p-4 md:p-6 mb-5 space-y-4 md:space-y-5">
           <FilterRow label={t('library.filter.personalStatus')}>
             <FilterChip active={!filters.personal_status} onClick={() => setFilter('personal_status', '')}>{t('common.all')}</FilterChip>
             {['want', 'watching', 'done', 'dropped'].map(s => (
@@ -160,9 +160,9 @@ export default function LibraryPage() {
           </FilterRow>
 
           {tags.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-[11px] text-ink-500 font-medium uppercase tracking-wider">
+            <div className="space-y-3 md:space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-ink-800 font-semibold">
                   {tagIds.length > 0
                     ? t('library.filter.tagsSelected', { n: tagIds.length })
                     : t('library.filter.tags')}
@@ -181,7 +181,7 @@ export default function LibraryPage() {
             <div className="flex justify-end">
               <button
                 onClick={clearTags}
-                className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 flex items-center gap-1 transition-colors"
+                className="text-xs md:text-[13px] text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg px-2 py-1 md:px-2.5 md:py-1.5 flex items-center gap-1 transition-colors"
               >
                 <X size={12} /> 清除筛选
               </button>
@@ -232,10 +232,10 @@ function FilterRow({ label, children, extra }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[11px] text-ink-500 font-medium uppercase tracking-wider">{label}</div>
+        <div className="text-sm text-ink-800 font-semibold">{label}</div>
         {extra}
       </div>
-      <div className="flex flex-wrap gap-2">{children}</div>
+      <div className="flex flex-wrap gap-1.5 md:gap-2">{children}</div>
     </div>
   )
 }
@@ -244,14 +244,14 @@ function FilterChip({ active, onClick, children, title }) {
   if (active) {
     return (
       <button onClick={onClick} title={title}
-              className="px-2.5 py-1 rounded text-xs font-medium border transition-colors bg-brand-600 border-brand-600 text-white">
+              className="px-2.5 py-1 rounded-md text-xs md:px-3 md:py-1.5 md:rounded-lg md:text-[13px] font-medium border transition-colors bg-brand-600 border-brand-600 text-white shadow-sm">
         {children}
       </button>
     )
   }
   return (
     <button onClick={onClick} title={title}
-            className="px-2.5 py-1 rounded text-xs font-medium border transition-colors bg-white text-ink-700 border-paper-300 hover:border-brand-400 hover:text-brand-700">
+            className="px-2.5 py-1 rounded-md text-xs md:px-3 md:py-1.5 md:rounded-lg md:text-[13px] font-medium border transition-colors bg-white text-ink-700 border-paper-300 hover:border-brand-400 hover:text-brand-700 hover:bg-brand-50">
       {children}
     </button>
   )
@@ -282,7 +282,7 @@ function TagGroupedList({ tags, tagGroups, tagIds, toggleTag }) {
   // 兜底：如果 tagGroups 还没加载（首次渲染），就把所有 tag 平铺
   if (groupsWithTags.length === 0) {
     return (
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5 md:gap-2">
         {tags.map(ta => (
           <FilterChip
             key={ta.id}
@@ -291,7 +291,7 @@ function TagGroupedList({ tags, tagGroups, tagIds, toggleTag }) {
             title={`${ta.name} (${ta.work_count})`}
           >
             {truncate(ta.name)}
-            <span className={`ml-1 text-[10px] ${tagIds.includes(ta.id) ? 'opacity-80' : 'text-ink-400'}`}>
+            <span className={`ml-1 text-[10px] md:text-[11px] ${tagIds.includes(ta.id) ? 'opacity-80' : 'text-ink-400'}`}>
               {ta.work_count}
             </span>
           </FilterChip>
@@ -301,13 +301,13 @@ function TagGroupedList({ tags, tagGroups, tagIds, toggleTag }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 md:space-y-4">
       {groupsWithTags.map(g => (
         <div key={g.id}>
           {showGroupLabels && (
-            <div className="text-[10px] text-ink-400 mb-1.5 font-medium">{g.name}</div>
+            <div className="text-xs text-ink-500 mb-1.5 md:mb-2 font-semibold">{g.name}</div>
           )}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 md:gap-2">
             {(tagsByGroup[g.id] || []).map(ta => (
               <FilterChip
                 key={ta.id}
@@ -316,7 +316,7 @@ function TagGroupedList({ tags, tagGroups, tagIds, toggleTag }) {
                 title={`${ta.name} (${ta.work_count})`}
               >
                 {truncate(ta.name)}
-                <span className={`ml-1 text-[10px] ${tagIds.includes(ta.id) ? 'opacity-80' : 'text-ink-400'}`}>
+                <span className={`ml-1 text-[10px] md:text-[11px] ${tagIds.includes(ta.id) ? 'opacity-80' : 'text-ink-400'}`}>
                   {ta.work_count}
                 </span>
               </FilterChip>

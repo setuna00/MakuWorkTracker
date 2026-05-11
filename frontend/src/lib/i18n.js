@@ -264,6 +264,8 @@ const zh = {
   'workDetail.editFieldCollectionsLabel': '收藏夹（{n} 已选）',
   'workDetail.editTagsEmpty': '还没有标签，可以去「设置 → 标签」创建',
   'workDetail.editCollectionsEmpty': '还没有收藏夹，可以去「设置 → 收藏夹」创建',
+  'workDetail.expand': '展开',
+  'workDetail.collapse': '收起',
 
   // Status enum (personal_status)
   'status.want': '想看',
@@ -625,6 +627,9 @@ const en = {
   'workDetail.editFieldCollectionsLabel': 'Favorites ({n} selected)',
   'workDetail.editTagsEmpty': 'No tags yet — create some in Settings → Tags',
   'workDetail.editCollectionsEmpty': 'No favorites yet — create some in Settings → Favorites',
+  'workDetail.expand': 'Show more',
+  'workDetail.collapse': 'Show less',
+
 
   // Status enum
   'status.want': 'Want',

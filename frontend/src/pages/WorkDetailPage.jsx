@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+// 注：useRef + IntersectionObserver 用于移动端顶 bar 标题滚动显隐
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Edit2, Trash2, Plus, MoreHorizontal } from 'lucide-react'
+import { ChevronDown, ChevronLeft, Edit2, Trash2, Plus, MoreHorizontal } from 'lucide-react'
 import { api, coverUrl } from '../lib/api'
 import { relativeDate, formatRange } from '../lib/format'
 import {
@@ -101,7 +102,7 @@ export default function WorkDetailPage() {
 
   return (
     <div className="max-w-[1100px] mx-auto pb-8">
-      <div className="card p-6 md:p-7 relative">
+      <div className="hidden md:block card p-6 md:p-7 relative">
         <div className="absolute top-5 right-5 flex items-center gap-2">
           {currentWatching && (
             <RoundSwitcher
@@ -227,6 +228,27 @@ export default function WorkDetailPage() {
         )}
       </div>
 
+      {/* ============ 移动端 ============ */}
+      <MobileWorkDetail
+        work={work}
+        currentWatching={currentWatching}
+        activeRound={activeRound}
+        setActiveRound={setActiveRound}
+        canDeleteRound={canDeleteRound}
+        setEditMetaOpen={setEditMetaOpen}
+        setConfirmDeleteRound={setConfirmDeleteRound}
+        setConfirmDeleteWork={setConfirmDeleteWork}
+        setBackfillOpen={setBackfillOpen}
+        setRecordOpen={setRecordOpen}
+        setEditingEntry={setEditingEntry}
+        displayUnit={displayUnit}
+        isMovie={isMovie}
+        typeMeta={typeMeta}
+        entries={entries}
+        groupedEntries={groupedEntries}
+      />
+
+      {/* ============ Modals（共用）============ */}
       {recordOpen && currentWatching && (
         <QuickRecordModal
           work={work}
@@ -299,6 +321,230 @@ export default function WorkDetailPage() {
 }
 
 // =================== 子组件 ===================
+
+function MobileWorkDetail({
+  work, currentWatching, activeRound, setActiveRound,
+  canDeleteRound, setEditMetaOpen, setConfirmDeleteRound, setConfirmDeleteWork,
+  setBackfillOpen, setRecordOpen, setEditingEntry,
+  displayUnit, isMovie, typeMeta, entries, groupedEntries,
+}) {
+  const t = useT()
+  const navigate = useNavigate()
+
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/library')
+  }
+
+  // 海报区标题滚出视区后，顶 bar 才显示标题
+  const heroTitleRef = useRef(null)
+  const [showTopBarTitle, setShowTopBarTitle] = useState(false)
+  useEffect(() => {
+    const el = heroTitleRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([entry]) => setShowTopBarTitle(!entry.isIntersecting),
+      { rootMargin: '-48px 0px 0px 0px', threshold: 0 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [work.id])
+
+  // 简介展开/收起
+  const [descExpanded, setDescExpanded] = useState(false)
+
+  return (
+    <div className="md:hidden -mx-4 -my-5">
+      {/* ============ 顶 bar ============ */}
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-paper-200 h-12 flex items-center px-2 gap-1">
+        <button
+          onClick={goBack}
+          className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-paper-100 text-ink-700 flex-shrink-0"
+          aria-label={t('common.back') || '返回'}
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <div
+          className={`flex-1 min-w-0 text-[15px] font-medium text-ink-900 truncate transition-opacity duration-200 ${
+            showTopBarTitle ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {work.title}
+        </div>
+        {currentWatching && (
+          <RoundSwitcher
+            work={work}
+            activeRound={activeRound}
+            onSwitch={setActiveRound}
+          />
+        )}
+        <WorkActionsMenu
+          canDeleteRound={canDeleteRound}
+          onEdit={() => setEditMetaOpen(true)}
+          onDeleteRound={() => setConfirmDeleteRound(true)}
+          onDelete={() => setConfirmDeleteWork(true)}
+        />
+      </div>
+
+      {/* ============ 海报 + 元信息（左右布局）============ */}
+      <div className="relative overflow-hidden">
+        {work.cover_path && (
+          <div
+            className="absolute inset-0 bg-cover bg-center scale-110 blur-2xl opacity-30"
+            style={{ backgroundImage: `url(${coverUrl(work.cover_path)})` }}
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/50 via-white/80 to-white" />
+        <div className="relative px-4 pt-4 pb-5 flex gap-4">
+          {/* 海报 */}
+          <div className="w-[40%] max-w-[180px] flex-shrink-0">
+            <div className="aspect-[3/4] bg-paper-100 rounded-xl overflow-hidden border border-paper-200 shadow-xl">
+              {work.cover_path && (
+                <img src={coverUrl(work.cover_path)} className="w-full h-full object-cover" alt={work.title} />
+              )}
+            </div>
+          </div>
+
+          {/* 元信息 */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="text-[11px] text-brand-600 font-medium uppercase tracking-wider">
+              {translateType(work.type, t)}
+              {!isMovie && ` · ${translateRelease(work.release_status, t)}`}
+            </div>
+            <h1
+              ref={heroTitleRef}
+              className="mt-1 text-xl font-semibold leading-tight text-ink-900 break-words"
+            >
+              {work.title}
+            </h1>
+            {work.original_title && (
+              <div className="mt-0.5 text-[13px] text-ink-500 break-words">{work.original_title}</div>
+            )}
+
+            {/* 制作者信息 */}
+            {typeMeta?.creator_fields?.length > 0 && (
+              <div className="mt-2.5 space-y-1 text-[12px]">
+                {typeMeta.creator_fields.map(f => (
+                  <div key={f.key} className="flex gap-2">
+                    <span className="text-ink-400 flex-shrink-0">{translateCreatorLabel(f, t)}</span>
+                    <span className="text-ink-700 min-w-0 break-words">{work.creators?.[f.key] || '-'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* tags + 收藏夹 */}
+            {(work.collections.length > 0 || work.tags.length > 0) ? (
+              <div className="mt-2.5 flex flex-wrap gap-1.5 items-center">
+                {work.collections.map(c => (
+                  <TagChip
+                    key={`c-${c.id}`} color={c.border_color} colored
+                    className="!rounded-full !px-2 !py-0.5 !text-[11px]"
+                    onClick={() => navigate(`/library?collection=${c.id}`)}
+                  >
+                    ★ {c.name}
+                  </TagChip>
+                ))}
+                {work.tags.map(tg => (
+                  <TagChip
+                    key={tg.id}
+                    className="!rounded-full !px-2 !py-0.5 !text-[11px]"
+                    onClick={() => navigate(`/library?tag=${tg.id}`)}
+                  >
+                    {tg.name}
+                  </TagChip>
+                ))}
+              </div>
+            ) : (
+              <button
+                onClick={() => setEditMetaOpen(true)}
+                className="mt-2.5 text-[11px] text-ink-400 hover:text-brand-600 self-start"
+              >
+                {t('workDetail.addTagOrFavorite')}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ============ 简介（3 行截断 + fade out + 展开）============ */}
+      {work.description && (
+        <div className="px-4 mt-3">
+          <div className="relative bg-paper-50 border border-paper-200 rounded-lg overflow-hidden">
+            <div
+              className={`p-3 text-[13px] leading-relaxed text-ink-700 whitespace-pre-wrap ${
+                descExpanded ? '' : 'max-h-[4.8rem] overflow-hidden'
+              }`}
+            >
+              {work.description}
+            </div>
+            {!descExpanded && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-paper-50 to-transparent" />
+            )}
+          </div>
+          <div className="flex justify-end mt-1.5">
+            <button
+              onClick={() => setDescExpanded(v => !v)}
+              className="text-[12px] text-brand-600 hover:text-brand-700 px-1"
+            >
+              {descExpanded ? t('workDetail.collapse') : t('workDetail.expand')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============ 主操作区：状态/进度/评分 ============ */}
+      {currentWatching && (
+        <div className="px-4 mt-4 space-y-3">
+          <StatusEditor watching={currentWatching} />
+          <ProgressDisplay
+            watching={currentWatching}
+            unitLabel={displayUnit}
+            totalUnits={work.total_units}
+            isMovie={isMovie}
+          />
+          <RatingEditor watching={currentWatching} />
+        </div>
+      )}
+
+      {/* ============ 总评 ============ */}
+      {currentWatching && (
+        <div className="px-4 mt-4">
+          <ReviewEditor watching={currentWatching} />
+        </div>
+      )}
+
+      {/* ============ 记录列表 ============ */}
+      {currentWatching && (
+        <div className="px-4 mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[13px] font-semibold text-ink-700">
+              {t('workDetail.entryLog')} · <span className="text-brand-600">{entries.length}</span>
+            </h3>
+            <div className="flex gap-2">
+              <Button variant="default" onClick={() => setBackfillOpen(true)}>
+                {t('workDetail.backfill')}
+              </Button>
+              <Button variant="primary" onClick={() => setRecordOpen(true)}>
+                <Plus size={14} /> {t('workDetail.recordNew')}
+              </Button>
+            </div>
+          </div>
+          <div className="border-l-2 border-paper-200 ml-1.5 pl-5 space-y-4 pt-2">
+            {groupedEntries.length === 0 && (
+              <div className="text-sm text-ink-400 py-6 italic">{t('workDetail.entryLogEmpty')}</div>
+            )}
+            {groupedEntries.map(g => (
+              <DayEntries key={g.date} group={g} unitLabel={displayUnit}
+                          isMovie={isMovie}
+                          onEdit={(e) => setEditingEntry(e)} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function RoundSwitcher({ work, activeRound, onSwitch }) {
   const t = useT()
@@ -777,7 +1023,20 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
   }
 
   return (
-    <Modal open={true} onClose={onClose} title={t('workDetail.editTitle')} size="lg">
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={t('workDetail.editTitle')}
+      size="lg"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="primary" onClick={() => update.mutate()} disabled={update.isPending}>
+            {t('common.save')}
+          </Button>
+        </div>
+      }
+    >
       <div className="space-y-4">
         <Field label={t('newWork.step2.fieldTitle')}>
           <input
@@ -904,13 +1163,6 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
             </div>
           )}
         </Field>
-
-        <div className="flex justify-end gap-2 pt-4 border-t border-paper-200">
-          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button variant="primary" onClick={() => update.mutate()} disabled={update.isPending}>
-            {t('common.save')}
-          </Button>
-        </div>
       </div>
     </Modal>
   )

@@ -30,8 +30,8 @@ export default function FavoritesPage() {
           <div className="text-sm text-ink-500">{t('favorites.empty')}</div>
           <div className="text-xs text-ink-400">{t('favorites.emptyHint')}</div>
           <Link
-            to="/settings"
-            className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white transition-colors"
+            to="/settings?tab=collections"
+            className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-medium bg-brand-600 hover:bg-brand-700 !text-white hover:!text-white transition-colors"
           >
             <Cog size={14} /> {t('favorites.gotoSettings')}
           </Link>
@@ -45,13 +45,11 @@ export default function FavoritesPage() {
               className="flex items-center gap-3 px-4 py-3.5 hover:bg-paper-50 transition-colors"
               style={{ borderLeft: `4px solid ${c.border_color}` }}
             >
-              <Star
-                size={16}
-                className="flex-shrink-0"
-                style={{ color: c.border_color }}
-              />
-              <span className="flex-1 text-[14px] font-medium text-ink-800 truncate">
+              <span className="flex-1 text-base font-semibold text-ink-900 truncate">
                 {c.name}
+              </span>
+              <span className="text-xs text-ink-400 tabular-nums flex-shrink-0">
+                {t('favorites.workCount', { n: c.work_count ?? c.works_count ?? 0 })}
               </span>
               <ChevronRight size={16} className="text-ink-400 flex-shrink-0" />
             </Link>

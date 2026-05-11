@@ -1,7 +1,7 @@
 import { X } from 'lucide-react'
 import { useT } from '../lib/i18n'
 
-export function Modal({ open, onClose, title, children, size = 'md' }) {
+export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   if (!open) return null
 
   const sizes = {
@@ -16,14 +16,19 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
          onClick={onClose}>
       <div className={`bg-white rounded-xl w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-paper-200`}
            onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-paper-200">
+        <div className="flex-shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-paper-200">
           <h3 className="font-medium text-base">{title}</h3>
           <button onClick={onClose}
                   className="text-ink-500 hover:text-ink-900 hover:bg-paper-100 p-1 rounded-md transition-colors">
             <X size={18} />
           </button>
         </div>
-        <div className="overflow-y-auto p-5">{children}</div>
+        <div className="flex-1 overflow-y-auto p-5 min-h-0">{children}</div>
+        {footer && (
+          <div className="flex-shrink-0 border-t border-paper-200 px-5 py-3 bg-white">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -46,29 +51,25 @@ export function Button({ children, variant = 'default', className = '', ...props
   )
 }
 
-/**
- * 二次确认弹窗
- *
- * @param open
- * @param onClose
- * @param onConfirm
- * @param title       标题
- * @param message     描述（可以包含 React 节点）
- * @param confirmText 确认按钮文字（默认"确认"）
- * @param danger      是否危险操作（红色按钮）
- */
 export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmText, danger = false }) {
   const t = useT()
   if (!open) return null
   return (
-    <Modal open={true} onClose={onClose} title={title} size="sm">
-      <div className="text-sm text-ink-700 mb-5 leading-relaxed">{message}</div>
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-        <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
-          {confirmText ?? t('common.confirm')}
-        </Button>
-      </div>
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={title}
+      size="sm"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
+            {confirmText ?? t('common.confirm')}
+          </Button>
+        </div>
+      }
+    >
+      <div className="text-sm text-ink-700 leading-relaxed">{message}</div>
     </Modal>
   )
 }
