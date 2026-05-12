@@ -11,7 +11,7 @@ import { QuickRecordModal } from '../components/QuickRecordModal'
 export default function HomePage() {
   const t = useT()
   const [recordingWork, setRecordingWork] = useState(null)
-  const [recommendSeed, setRecommendSeed] = useState(0)
+  const [recommendSeed, setRecommendSeed] = useState(() => Math.floor(Math.random() * 1_000_000))
 
   const { data: typesMeta = { types: [] } } = useQuery({
     queryKey: ['types-meta'],
@@ -45,17 +45,10 @@ export default function HomePage() {
     return { watching: onTrack, caughtUp: waiting }
   }, [watchingRaw])
   
-  const { data: wantList = [] } = useQuery({
-    queryKey: ['works', { personal_status: 'want' }],
-    queryFn: () => api.listWorks({ personal_status: 'want' }),
+  const { data: recommendations = [] } = useQuery({
+    queryKey: ['recommendations', recommendSeed],
+    queryFn: () => api.getRecommendations(7, recommendSeed),
   })
-
-  const recommendations = useMemo(() => {
-    if (!wantList.length) return []
-    const shuffled = [...wantList].sort(() => Math.random() - 0.5)
-    return shuffled.slice(0, 7)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantList, recommendSeed])
 
   const now = new Date()
   const { data: monthly } = useQuery({
@@ -138,7 +131,7 @@ export default function HomePage() {
       <Section
         title={t('home.recommend')}
         action={
-          <button onClick={() => setRecommendSeed(s => s + 1)}
+          <button onClick={() => setRecommendSeed(Math.floor(Math.random() * 1_000_000))}
                   className="text-[12px] text-ink-500 hover:text-brand-600 flex items-center gap-1 transition-colors">
             <RefreshCw size={12} /> {t('home.recommendShuffle')}
           </button>
@@ -159,13 +152,24 @@ export default function HomePage() {
 
 
       <Section title={t('home.recentActivity')}>
-        {(!recent || recent.days?.length === 0) ? (
-          <EmptyHint text={t('home.entriesEmpty')} />
-        ) : (
-          <div className="card p-5">
-            <div className="border-l-2 border-paper-200 ml-1.5 pl-5 space-y-4">
-              {recent.days.flatMap(day =>
-                day.items.map((item, i) => (
+        {(() => {
+          // 先平铺成 (day, item) 列表;前端兜底过滤掉补录(后端已过滤,这里防御性二次过滤)
+          const RECENT_MAX = 10
+          const flat = (recent?.days || []).flatMap(day =>
+            day.items
+              .filter(item => !item.is_backfill)
+              .map(item => ({ day, item }))
+          )
+          const visible = flat.slice(0, RECENT_MAX)
+          const hasMore = flat.length > RECENT_MAX
+
+          if (visible.length === 0) {
+            return <EmptyHint text={t('home.entriesEmpty')} />
+          }
+          return (
+            <div className="card p-5">
+              <div className="border-l-2 border-paper-200 ml-1.5 pl-5 space-y-4">
+                {visible.map(({ day, item }, i) => (
                   <div key={`${day.date}-${item.watching_id}-${i}`} className="relative">
                     <div className="absolute -left-[26px] top-1 w-3 h-3 rounded-full bg-brand-500 ring-4 ring-white" />
                     <div className="text-[11px] text-ink-400 mb-0.5">{relativeDate(day.date)}</div>
@@ -189,11 +193,18 @@ export default function HomePage() {
                       </div>
                     )}
                   </div>
-                ))
+                ))}
+              </div>
+              {hasMore && (
+                <div className="mt-4 pt-3 border-t border-paper-100 text-center">
+                  <Link to="/timeline" className="text-[12px] text-brand-600 hover:text-brand-700">
+                    {t('home.recentMore')}
+                  </Link>
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )
+        })()}
       </Section>
 
       {recordingWork && workForRecord && (

@@ -110,6 +110,10 @@ export const api = {
   createCollection: (data) => request('/api/collections', { method: 'POST', body: JSON.stringify(data) }),
   updateCollection: (id, data) => request(`/api/collections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCollection: (id) => request(`/api/collections/${id}`, { method: 'DELETE' }),
+  bulkAddToCollection: (colId, workIds) =>
+    request(`/api/collections/${colId}/works`, { method: 'POST', body: JSON.stringify({ work_ids: workIds }) }),
+  removeFromCollection: (colId, workId) =>
+    request(`/api/collections/${colId}/works/${workId}`, { method: 'DELETE' }),
 
   // ---- timeline ----
   getTimeline: (params = {}) => {
@@ -122,6 +126,9 @@ export const api = {
     request(`/api/stats/monthly-overview?year=${year}&month=${month}`),
   getRecentActivity: (days = 7, limit = 10) =>
     request(`/api/stats/recent-activity?days=${days}&limit=${limit}`),
+  getRecommendations: (limit = 7, seed = 0) =>
+    request(`/api/stats/recommendations?limit=${limit}&seed=${seed}`),
+  getTypeCounts: () => request('/api/stats/type-counts'),
 
   // ---- admin ----
   triggerBackup: () => request('/api/admin/backup', { method: 'POST' }),

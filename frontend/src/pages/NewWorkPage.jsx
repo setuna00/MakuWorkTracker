@@ -477,7 +477,8 @@ function Field({ span = 12, label, hint, required, error, children }) {
 }
 
 function fieldControlClass(hasError = false) {
-  return `w-full min-h-11 rounded-xl border px-3.5 text-sm text-ink-900 bg-slate-50/80 placeholder:text-ink-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition ${hasError
+  // text-base (16px) 在 iOS Safari 聚焦时不会触发自动放大;桌面端通过 md:text-sm 恢复 14px。
+  return `w-full min-h-11 rounded-xl border px-3.5 text-base md:text-sm text-ink-900 bg-slate-50/80 placeholder:text-ink-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition ${hasError
     ? 'border-red-400 focus:border-red-500 focus:ring-4 focus:ring-red-100'
     : 'border-slate-300 hover:border-slate-400 focus:border-brand-600 focus:ring-4 focus:ring-brand-100'} focus:outline-none`
 }

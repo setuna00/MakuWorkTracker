@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, useNavigate, useLocation, Link } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom'
 import { Home, Library, Clock, Settings as Cog, Plus, ChevronDown, Search, Star } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
@@ -52,27 +52,27 @@ export function Layout({ children }) {
           </Link>
         </div>
         <div className="px-3 py-4 flex-1 overflow-y-auto">
-          <div className="text-[11px] text-ink-400 px-2 mb-2 uppercase tracking-wider">{t('nav.section')}</div>
-          <NavItem to="/" icon={<Home size={15} />}>{t('nav.home')}</NavItem>
-          <NavItem to="/library" icon={<Library size={15} />}>{t('nav.library')}</NavItem>
-          <NavItem to="/timeline" icon={<Clock size={15} />}>{t('nav.timeline')}</NavItem>
+          <div className="text-[12px] text-ink-400 px-2 mb-2 uppercase tracking-wider">{t('nav.section')}</div>
+          <NavItem to="/" icon={<Home size={16} />}>{t('nav.home')}</NavItem>
+          <NavItem to="/library" icon={<Library size={16} />}>{t('nav.library')}</NavItem>
+          <NavItem to="/timeline" icon={<Clock size={16} />}>{t('nav.timeline')}</NavItem>
 
           <div className="flex items-center justify-between px-2 mt-5 mb-2">
-            <span className="text-[11px] text-ink-400 uppercase tracking-wider">{t('nav.favorites')}</span>
+            <span className="text-[12px] text-ink-400 uppercase tracking-wider">{t('nav.favorites')}</span>
             <button onClick={() => setCollectionsOpen(o => !o)} className="text-ink-400 hover:text-ink-700">
               <ChevronDown size={12} className={collectionsOpen ? '' : '-rotate-90'} />
             </button>
           </div>
           {collectionsOpen && <>
             {collections.length === 0 && (
-              <div className="px-2 text-[11px] text-ink-400 italic">{t('nav.noFavorites')}</div>
+              <div className="px-2 text-[12px] text-ink-400 italic">{t('nav.noFavorites')}</div>
             )}
             {collections.map(c => (
               <Link
                 key={c.id}
                 to={`/library?collection=${c.id}`}
                 title={c.name}
-                className="block py-1.5 px-2 text-[13px] text-ink-700 rounded hover:bg-brand-50 hover:text-brand-700 transition-colors mb-0.5 truncate"
+                className="block py-1.5 px-2 text-[14px] text-ink-700 rounded hover:bg-brand-50 hover:text-brand-700 transition-colors mb-0.5 truncate"
                 style={{ borderLeft: `3px solid ${c.border_color}` }}
               >
                 {c.name}
@@ -81,8 +81,8 @@ export function Layout({ children }) {
           </>}
         </div>
         <div className="border-t border-paper-200 px-3 py-3">
-          <NavLink to="/settings" className="flex items-center gap-2 px-2 py-2 rounded-md text-[13px] transition-colors text-ink-700 hover:bg-paper-100">
-            <Cog size={15} /> {t('nav.settings')}
+          <NavLink to="/settings" className="flex items-center gap-2 px-2 py-2 rounded-md text-[14px] transition-colors text-ink-700 hover:bg-paper-100">
+            <Cog size={16} /> {t('nav.settings')}
           </NavLink>
         </div>
       </aside>
@@ -147,7 +147,25 @@ export function Layout({ children }) {
 
 function LibrarySearch({ navigate, tags, collections, typesMeta }) {
   const t = useT()
-  const [query, setQuery] = useState('')
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  // 在作品库页面,搜索框受 URL 的 ?q= 控制;其他页面保持本地输入态
+  const isLibraryPage = location.pathname === '/library'
+  const urlQ = searchParams.get('q') || ''
+  const [localQuery, setLocalQuery] = useState('')
+  const query = isLibraryPage ? urlQ : localQuery
+  const setQuery = (v) => {
+    if (isLibraryPage) {
+      // 在作品库:动态同步到 URL,清空时自动移除 ?q=
+      const next = new URLSearchParams(searchParams)
+      if (v) next.set('q', v)
+      else next.delete('q')
+      navigate(`/library?${next.toString()}`, { replace: true })
+    } else {
+      setLocalQuery(v)
+    }
+  }
+
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -159,9 +177,17 @@ function LibrarySearch({ navigate, tags, collections, typesMeta }) {
     return [...keys]
   }, [typesMeta.types])
 
+  // 高级语法 chip。tag/favorites 的"具体值"会带上对应实体的 id,选中后走 URL filter
+  // 而不是把字面量塞进 q —— 这样作品库的 chip 能正确激活(对应 todo 5a)
   const grammar = [
-    { key: '$tag:', label: t('search.grammar.tag'), values: tags.map(x => x.name) },
-    { key: '$favorites:', label: t('search.grammar.favorites'), values: collections.map(c => c.name) },
+    {
+      key: '$tag:', label: t('search.grammar.tag'),
+      values: tags.map(x => ({ display: x.name, id: x.id, kind: 'tag' })),
+    },
+    {
+      key: '$favorites:', label: t('search.grammar.favorites'),
+      values: collections.map(c => ({ display: c.name, id: c.id, kind: 'favorites' })),
+    },
     { key: '$author:', label: t('search.grammar.author'), values: [] },
     { key: '$director:', label: t('search.grammar.director'), values: [] },
     ...creatorKeys
@@ -180,28 +206,57 @@ function LibrarySearch({ navigate, tags, collections, typesMeta }) {
   const activeValue = activeToken.includes(':') ? activeToken.split(':')[1] : ''
   const activeGrammar = grammar.find(g => g.key === activeKey)
   const valueSuggestions = (activeGrammar?.values || [])
-    .filter(v => v.toLowerCase().includes(activeValue.toLowerCase()))
+    .filter(v => v.display.toLowerCase().includes(activeValue.toLowerCase()))
     .slice(0, 12)
 
   const submit = () => {
-    if (!query.trim()) return
+    if (!query.trim()) {
+      // 空提交:在作品库就清除 q,其他页面也跳到作品库不带 q
+      if (isLibraryPage) {
+        const next = new URLSearchParams(searchParams)
+        next.delete('q')
+        navigate(`/library?${next.toString()}`, { replace: true })
+      }
+      setOpen(false)
+      return
+    }
     navigate('/library?q=' + encodeURIComponent(query.trim()))
     setOpen(false)
   }
+
   const insertSyntax = (token) => {
     const trimmed = query.trimEnd()
     setQuery(trimmed + (trimmed ? ' ' : '') + token)
     setOpen(true)
   }
+
+  // 选中具体值:tag/favorites 直接走 URL filter 参数;creator 类(author/director 等)
+  // 因为没有对应实体表,继续走 q 文本搜索语法
   const insertValue = (value) => {
     if (!activeToken) return
+
+    // 把当前输入框里的 $key:partial 这一段移除掉(它马上被"转换"成 URL filter 了)
     const escapedKey = activeKey.replace('$', '\\$')
-    const finalQuery = query.replace(new RegExp(`${escapedKey}[^\\s]*$`), `${activeKey}${value}`)
+    const remainder = query.replace(new RegExp(`${escapedKey}[^\\s]*$`), '').trim()
+
+    if (value.kind === 'tag' || value.kind === 'favorites') {
+      // 走 URL filter 参数,作品库的 chip 自动激活
+      const next = new URLSearchParams()
+      if (remainder) next.set('q', remainder)
+      if (value.kind === 'tag') next.append('tag', String(value.id))
+      else next.set('collection', String(value.id))
+      navigate(`/library?${next.toString()}`)
+      // 跳转后,如果在作品库页面 query 会被 URL 重置;否则清掉本地态
+      if (!isLibraryPage) setLocalQuery('')
+      setOpen(false)
+      return
+    }
+
+    // creator 类:仍然走 q 文本语法
+    const finalQuery = (remainder ? remainder + ' ' : '') + `${activeKey}${value.display}`
     setQuery(finalQuery + ' ')
     setOpen(false)
-    if (finalQuery.trim()) {
-      navigate('/library?q=' + encodeURIComponent(finalQuery.trim()))
-    }
+    navigate('/library?q=' + encodeURIComponent(finalQuery.trim()))
   }
 
   return (
@@ -238,12 +293,12 @@ function LibrarySearch({ navigate, tags, collections, typesMeta }) {
                 <div className="flex flex-col gap-1">
                   {valueSuggestions.map(v => (
                     <button
-                      key={v}
+                      key={`${v.kind || 'free'}-${v.id ?? v.display}`}
                       onClick={() => insertValue(v)}
-                      title={v}
+                      title={v.display}
                       className="w-full text-left px-2 py-1 text-xs rounded border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 truncate"
                     >
-                      {truncate(v)}
+                      {truncate(v.display)}
                     </button>
                   ))}
                 </div>
@@ -264,7 +319,7 @@ function NavItem({ to, icon, children }) {
       to={to}
       end
       className={({ isActive }) =>
-        `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] mb-0.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-1 ${
+        `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[14px] mb-0.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-1 ${
           isActive
             ? 'bg-brand-600 text-white visited:text-white font-medium border border-transparent [&_svg]:text-white'
             : 'text-ink-700 visited:text-ink-700 hover:bg-paper-100 border border-transparent'

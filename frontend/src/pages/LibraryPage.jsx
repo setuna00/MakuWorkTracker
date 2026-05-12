@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Filter, X, ArrowUp, ArrowDown } from 'lucide-react'
+import { Filter, X, ArrowUp, ArrowDown, ChevronDown, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { resolveUnitLabel } from '../lib/format'
 import { useT, translateType, translateStatus, translateUnit } from '../lib/i18n'
 import { WorkCard, EmptyAddCard } from '../components/WorkCard'
+import { BulkAddToCollectionModal } from '../components/BulkAddToCollectionModal'
 
 // 标签/收藏夹名超过这个字数会被截断（hover 看完整）
 const NAME_MAX_CHARS = 6
@@ -19,6 +20,7 @@ export default function LibraryPage() {
   const t = useT()
   const [searchParams, setSearchParams] = useSearchParams()
   const [filterOpen, setFilterOpen] = useState(false)
+  const [bulkAddOpen, setBulkAddOpen] = useState(false)
 
   const { data: typesMeta = { types: [] } } = useQuery({
     queryKey: ['types-meta'],
@@ -31,12 +33,14 @@ export default function LibraryPage() {
   })
   const { data: collections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
   const { data: tagGroups = [] } = useQuery({ queryKey: ['tagGroups'], queryFn: api.listTagGroups })
+  const { data: typeCounts } = useQuery({ queryKey: ['typeCounts'], queryFn: api.getTypeCounts })
 
   const tagIds = searchParams.getAll('tag').map(s => Number(s)).filter(n => !Number.isNaN(n))
 
   const filters = {
     type: searchParams.get('type') || '',
     personal_status: searchParams.get('personal_status') || '',
+    release_status: searchParams.get('release_status') || '',
     tag_id: tagIds,
     collection_id: searchParams.get('collection') || '',
     q: searchParams.get('q') || '',
@@ -82,6 +86,7 @@ export default function LibraryPage() {
 
   const activeFilterCount =
     (filters.personal_status ? 1 : 0) +
+    (filters.release_status ? 1 : 0) +
     tagIds.length
 
   const activeCollection = filters.collection_id
@@ -90,22 +95,36 @@ export default function LibraryPage() {
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <h1
-        className="text-2xl font-semibold mb-5 text-ink-900"
-        style={
-          activeCollection ? { color: activeCollection.border_color } : undefined
-        }
-      >
-        {activeCollection ? activeCollection.name : t('library.title')}
-      </h1>
+      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        <h1
+          className="text-2xl font-semibold text-ink-900"
+          style={
+            activeCollection ? { color: activeCollection.border_color } : undefined
+          }
+        >
+          {activeCollection ? activeCollection.name : t('library.title')}
+        </h1>
+        {activeCollection && (
+          <button
+            onClick={() => setBulkAddOpen(true)}
+            className="text-sm px-3 py-1.5 rounded-md border border-paper-300 bg-white hover:border-brand-500 hover:text-brand-700 transition-colors inline-flex items-center gap-1.5"
+          >
+            <Plus size={14} /> {t('favorites.bulkAdd')}
+          </button>
+        )}
+      </div>
 
       {/* 类型 Tab */}
       <div className="flex items-center gap-1.5 mb-4 overflow-x-auto scrollbar-hide">
-        <TypeTab active={!filters.type} onClick={() => setFilter('type', '')}>{t('common.all')}</TypeTab>
+        <TypeTab active={!filters.type} onClick={() => setFilter('type', '')}>
+          {t('common.all')}
+          {typeCounts && <TabCount n={typeCounts.total} active={!filters.type} />}
+        </TypeTab>
         {typesMeta.types.map(ty => (
           <TypeTab key={ty.value} active={filters.type === ty.value}
                    onClick={() => setFilter('type', ty.value)}>
             {translateType(ty.value, t)}
+            {typeCounts && <TabCount n={typeCounts.counts?.[ty.value] ?? 0} active={filters.type === ty.value} />}
           </TypeTab>
         ))}
       </div>
@@ -157,6 +176,17 @@ export default function LibraryPage() {
                 {translateStatus(s, t)}
               </FilterChip>
             ))}
+            {/* release_status: 紧贴 personal_status 之后,前面加一条竖分隔线区分语义。
+                flex-wrap 在窄屏会自然换行,不会挤爆。 */}
+            <span aria-hidden className="hidden md:inline-block w-px h-5 bg-paper-300 mx-1 self-center" />
+            <FilterChip active={filters.release_status === 'ongoing'}
+                        onClick={() => setFilter('release_status', filters.release_status === 'ongoing' ? '' : 'ongoing')}>
+              {t('library.filter.ongoing')}
+            </FilterChip>
+            <FilterChip active={filters.release_status === 'finished'}
+                        onClick={() => setFilter('release_status', filters.release_status === 'finished' ? '' : 'finished')}>
+              {t('library.filter.finished')}
+            </FilterChip>
           </FilterRow>
 
           {tags.length > 0 && (
@@ -211,6 +241,13 @@ export default function LibraryPage() {
           <EmptyAddCard />
         </div>
       </div>
+
+      {bulkAddOpen && activeCollection && (
+        <BulkAddToCollectionModal
+          collection={activeCollection}
+          onClose={() => setBulkAddOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -218,13 +255,21 @@ export default function LibraryPage() {
 function TypeTab({ active, children, onClick }) {
   return (
     <button onClick={onClick}
-            className={`px-3.5 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors ${
+            className={`px-3.5 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors inline-flex items-center gap-1.5 ${
               active
                 ? 'bg-brand-600 text-white'
                 : 'text-ink-700 hover:bg-paper-100 border border-paper-200'
             }`}>
       {children}
     </button>
+  )
+}
+
+function TabCount({ n, active }) {
+  return (
+    <span className={`tabular-nums text-[11px] px-1.5 py-0.5 rounded ${
+      active ? 'bg-white/20 text-white' : 'bg-paper-100 text-ink-500'
+    }`}>{n}</span>
   )
 }
 
@@ -258,6 +303,7 @@ function FilterChip({ active, onClick, children, title }) {
 }
 
 function TagGroupedList({ tags, tagGroups, tagIds, toggleTag }) {
+  const t = useT()
   // 按 group_id 分桶。group_id 为 null 的归入默认组。
   // 找到默认组 id 作为 null 的归属。
   const defaultGroupId = tagGroups.find(g => g.is_default)?.id ?? null
@@ -278,6 +324,22 @@ function TagGroupedList({ tags, tagGroups, tagIds, toggleTag }) {
 
   // 只渲染有 tag 的分组
   const groupsWithTags = orderedGroups.filter(g => (tagsByGroup[g.id] || []).length > 0)
+
+  // 每个分组的折叠状态:默认全开;选中状态保持开启,避免折叠后看不到已选项
+  // sessionStorage key 设计成临时,避免和 React state 在 filterOpen 切换时丢失
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('library.tagGroupCollapsed')
+      return raw ? JSON.parse(raw) : {}
+    } catch { return {} }
+  })
+  const toggleCollapsed = (gid) => {
+    setCollapsed(prev => {
+      const next = { ...prev, [gid]: !prev[gid] }
+      try { sessionStorage.setItem('library.tagGroupCollapsed', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
 
   // 兜底：如果 tagGroups 还没加载（首次渲染），就把所有 tag 平铺
   if (groupsWithTags.length === 0) {
@@ -302,28 +364,48 @@ function TagGroupedList({ tags, tagGroups, tagIds, toggleTag }) {
 
   return (
     <div className="space-y-3 md:space-y-4">
-      {groupsWithTags.map(g => (
-        <div key={g.id}>
-          {showGroupLabels && (
-            <div className="text-xs text-ink-500 mb-1.5 md:mb-2 font-semibold">{g.name}</div>
-          )}
-          <div className="flex flex-wrap gap-1.5 md:gap-2">
-            {(tagsByGroup[g.id] || []).map(ta => (
-              <FilterChip
-                key={ta.id}
-                active={tagIds.includes(ta.id)}
-                onClick={() => toggleTag(ta.id)}
-                title={`${ta.name} (${ta.work_count})`}
+      {groupsWithTags.map(g => {
+        const groupTags = tagsByGroup[g.id] || []
+        const selectedInGroup = groupTags.filter(ta => tagIds.includes(ta.id)).length
+        const isCollapsed = !!collapsed[g.id]
+        return (
+          <div key={g.id}>
+            {showGroupLabels && (
+              <button
+                onClick={() => toggleCollapsed(g.id)}
+                className="flex items-center gap-1.5 mb-1.5 md:mb-2 text-xs text-ink-500 hover:text-ink-700 font-semibold transition-colors w-full text-left"
               >
-                {truncate(ta.name)}
-                <span className={`ml-1 text-[10px] md:text-[11px] ${tagIds.includes(ta.id) ? 'opacity-80' : 'text-ink-400'}`}>
-                  {ta.work_count}
-                </span>
-              </FilterChip>
-            ))}
+                <ChevronDown
+                  size={12}
+                  className={`transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                />
+                <span>{g.name}</span>
+                <span className="text-ink-400 font-normal">({groupTags.length})</span>
+                {selectedInGroup > 0 && (
+                  <span className="text-brand-600 font-normal">· {t('library.filter.tagGroupSelected', { n: selectedInGroup })}</span>
+                )}
+              </button>
+            )}
+            {!isCollapsed && (
+              <div className="flex flex-wrap gap-1.5 md:gap-2">
+                {groupTags.map(ta => (
+                  <FilterChip
+                    key={ta.id}
+                    active={tagIds.includes(ta.id)}
+                    onClick={() => toggleTag(ta.id)}
+                    title={`${ta.name} (${ta.work_count})`}
+                  >
+                    {truncate(ta.name)}
+                    <span className={`ml-1 text-[10px] md:text-[11px] ${tagIds.includes(ta.id) ? 'opacity-80' : 'text-ink-400'}`}>
+                      {ta.work_count}
+                    </span>
+                  </FilterChip>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

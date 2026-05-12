@@ -127,7 +127,8 @@ def export_csv(session: Session = Depends(get_session)):
                 "|".join(c.name for c in w.collections),
                 w.created_at.isoformat(), w.updated_at.isoformat(),
             ])
-        zf.writestr("works.csv", sb.getvalue())
+        # UTF-8 BOM 前缀,让 Excel / WPS 直接打开 CSV 不出现中文乱码
+        zf.writestr("works.csv", "\ufeff" + sb.getvalue())
 
         # watchings.csv
         sb = io.StringIO()
@@ -142,7 +143,7 @@ def export_csv(session: Session = Depends(get_session)):
                 x.finished_at.isoformat() if x.finished_at else "",
                 x.overall_review or "",
             ])
-        zf.writestr("watchings.csv", sb.getvalue())
+        zf.writestr("watchings.csv", "\ufeff" + sb.getvalue())
 
         # progress_entries.csv
         sb = io.StringIO()
@@ -155,7 +156,7 @@ def export_csv(session: Session = Depends(get_session)):
                 e.range_start or "", e.range_end or "", e.consumed_count,
                 e.note or "", e.created_at.isoformat(),
             ])
-        zf.writestr("progress_entries.csv", sb.getvalue())
+        zf.writestr("progress_entries.csv", "\ufeff" + sb.getvalue())
 
     buf.seek(0)
     filename = f"works-tracker-csv-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"

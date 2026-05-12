@@ -78,6 +78,7 @@ def list_works(
     session: Session = Depends(get_session),
     type: Optional[WorkType] = None,
     personal_status: Optional[PersonalStatus] = None,  # 按"激活周目=main"的状态筛选
+    release_status: Optional[ReleaseStatus] = None,  # 完结/连载等作品状态
     tag_id: Optional[List[int]] = Query(None),  # 多值 AND：作品需同时拥有所有传入 tag
     collection_id: Optional[int] = Query(None),
     q: Optional[str] = None,
@@ -93,6 +94,8 @@ def list_works(
 
     if type:
         stmt = stmt.where(Work.type == type)
+    if release_status is not None:
+        stmt = stmt.where(Work.release_status == release_status)
     if q:
         tag_terms, fav_terms, creator_terms, free_terms = _parse_query(q)
 

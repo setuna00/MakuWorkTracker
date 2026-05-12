@@ -157,7 +157,118 @@ def recent_activity(
     limit: int = Query(10, ge=1, le=50),
     session: Session = Depends(get_session),
 ):
-    """首页"最近动态"使用：过去 N 天的合并展示事件。"""
+    """首页"最近动态"使用:过去 N 天的合并展示事件。
+
+    严格排除补录:首页是"最近做的事",不是历史回填,所以补录类条目永远不该出现。
+    """
     today = date.today()
     from_date = today - timedelta(days=days - 1)
-    return get_timeline(session=session, from_date=from_date, to_date=today, limit=limit * 3)
+    # 显式 include_backfill=False;前端首页也做了二次过滤兜底
+    return get_timeline(
+        session=session,
+        from_date=from_date,
+        to_date=today,
+        limit=limit * 3,
+        include_backfill=False,
+    )
+
+
+@router.get("/api/stats/recommendations")
+def recommendations(
+    limit: int = Query(7, ge=1, le=20),
+    lookback_days: int = Query(60, ge=7, le=365),
+    seed: int = Query(0),
+    session: Session = Depends(get_session),
+):
+    """基于最近记录的 tag/类型相似度,从 personal_status=want 列表中推荐。
+
+    评分方式:
+      - 取最近 lookback_days 天内有 progress 记录的 work,统计每个 tag / type 出现的"作品次数"
+        (一个作品被记录多次只计一次,避免追番期间被严重过度权重)
+      - 对每个 want 作品:重合 tag 加权 2,同 type 加权 1
+      - 分数 0 的不算"基于相似度",混排到尾部,保证空记录用户也有内容看
+      - 同分组内按 seed 做稳定打散 → 前端"换一批"
+    """
+    import random
+    from ..models import Work, Watching, ProgressEntry
+    from ..models.enums import PersonalStatus
+    from .works import _watching_with_progress
+    from ..schemas import WorkRead
+
+    # 1. 拉最近 lookback_days 内有 progress 记录的 work id 集合(去掉补录)
+    since = date.today() - timedelta(days=lookback_days)
+    recent_work_ids = set(session.exec(
+        select(Watching.work_id)
+        .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+        .where(ProgressEntry.date >= since)
+        .where(ProgressEntry.is_backfill == False)
+        .distinct()
+    ).all())
+
+    # 2. 累积 tag 频率 / type 频率(按"作品次数"统计,每作品计一次)
+    tag_freq: Dict[int, int] = defaultdict(int)
+    type_freq: Dict[str, int] = defaultdict(int)
+    if recent_work_ids:
+        recent_works = session.exec(
+            select(Work).where(Work.id.in_(recent_work_ids))
+        ).all()
+        for w in recent_works:
+            type_freq[w.type.value] += 1
+            for t in w.tags:
+                tag_freq[t.id] += 1
+
+    # 3. 拿到所有 want 作品(main 周目 personal_status=want)
+    want_works = session.exec(
+        select(Work)
+        .join(Watching, Watching.work_id == Work.id)
+        .where(Watching.round_number == 1)
+        .where(Watching.personal_status == PersonalStatus.want)
+        .distinct()
+    ).all()
+
+    if not want_works:
+        return []
+
+    # 4. 打分
+    TAG_WEIGHT = 2
+    TYPE_WEIGHT = 1
+    scored = []
+    for w in want_works:
+        s = 0
+        for t in w.tags:
+            s += TAG_WEIGHT * tag_freq.get(t.id, 0)
+        s += TYPE_WEIGHT * type_freq.get(w.type.value, 0)
+        scored.append((s, w))
+
+    # 5. 排序:分数降序;同分组内用 seed 打散(支持"换一批")
+    rng = random.Random(seed)
+    scored.sort(key=lambda pair: (-pair[0], rng.random()))
+
+    picked = [w for _, w in scored[:limit]]
+
+    # 6. 组装响应(复用 WorkRead + main_watching)
+    out = []
+    for w in picked:
+        wr = WorkRead.model_validate(w)
+        main = next((x for x in w.watchings if x.round_number == 1), None)
+        if main is not None:
+            wr.main_watching = _watching_with_progress(session, main)
+        out.append(wr)
+    return out
+
+
+@router.get("/api/stats/type-counts")
+def type_counts(session: Session = Depends(get_session)):
+    """每个 WorkType 的作品总数,用于作品库类型 Tab 展示数字。
+
+    包含 total 字段表示全部作品数,前端"全部"标签可用。
+    """
+    rows = session.exec(
+        select(Work.type, func.count(Work.id)).group_by(Work.type)
+    ).all()
+    counts = {t.value: 0 for t in WorkType}
+    total = 0
+    for ty, cnt in rows:
+        counts[ty.value] = cnt
+        total += cnt
+    return {"total": total, "counts": counts}

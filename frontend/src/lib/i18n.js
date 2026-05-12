@@ -80,6 +80,7 @@ const zh = {
   'home.watchingEmpty': '还没有在看的作品',
   'home.monthlyOverview': '本月概览',
   'home.recentActivity': '最近动态',
+  'home.recentMore': '查看更多 →',
   'home.entriesEmpty': '还没有进度记录',
   'home.stat.entries': '本月记录',
   'home.stat.activeWorks': '活跃作品',
@@ -100,9 +101,12 @@ const zh = {
   'library.filter.personalStatus': '个人状态',
   'library.filter.tags': '标签',
   'library.filter.tagsSelected': '标签 (已选 {n}, 同时满足)',
+  'library.filter.tagGroupSelected': '{n} 已选',
   'library.filter.clearAll': '清除所有筛选',
   'library.filter.activeMonth': '本月活跃作品（{month}）',
   'library.filter.newMonth': '本月新开作品（{month}）',
+  'library.filter.ongoing': '更新中',
+  'library.filter.finished': '完结',
 
   // Favorites page (mobile-only entry)
   'favorites.title': '收藏夹',
@@ -111,6 +115,14 @@ const zh = {
   'favorites.emptyHint': '可以去「设置 → 收藏夹」创建',
   'favorites.gotoSettings': '前往设置',
   'favorites.workCount': '{n} 部作品',
+  'favorites.bulkAdd': '批量添加作品',
+  'favorites.bulkAddTitle': '添加作品到「{name}」',
+  'favorites.bulkAddSearchPlaceholder': '搜索作品标题',
+  'favorites.bulkAddSelected': '已选 {n} 部',
+  'favorites.bulkAddConfirm': '加入收藏夹',
+  'favorites.bulkAddNoResults': '没有匹配的作品',
+  'favorites.bulkAddAlreadyIn': '已在收藏夹中',
+  'favorites.bulkAddSuccess': '已添加 {n} 部作品',
 
   // Timeline
   'timeline.title': '时间轴',
@@ -444,6 +456,7 @@ const en = {
   'home.watchingEmpty': 'Nothing in progress yet',
   'home.monthlyOverview': 'This Month',
   'home.recentActivity': 'Recent Activity',
+  'home.recentMore': 'View more →',
   'home.entriesEmpty': 'No progress entries yet',
   'home.stat.entries': 'Entries',
   'home.stat.activeWorks': 'Active works',
@@ -464,9 +477,12 @@ const en = {
   'library.filter.personalStatus': 'Status',
   'library.filter.tags': 'Tags',
   'library.filter.tagsSelected': 'Tags ({n} selected, AND)',
+  'library.filter.tagGroupSelected': '{n} selected',
   'library.filter.clearAll': 'Clear all filters',
   'library.filter.activeMonth': 'Active works ({month})',
   'library.filter.newMonth': 'New works ({month})',
+  'library.filter.ongoing': 'Ongoing',
+  'library.filter.finished': 'Finished',
 
   // Favorites page
   'favorites.title': 'Favorites',
@@ -475,6 +491,14 @@ const en = {
   'favorites.emptyHint': 'Create one in Settings → Favorites',
   'favorites.gotoSettings': 'Go to Settings',
   'favorites.workCount': '{n} works',
+  'favorites.bulkAdd': 'Add works',
+  'favorites.bulkAddTitle': 'Add works to "{name}"',
+  'favorites.bulkAddSearchPlaceholder': 'Search by title',
+  'favorites.bulkAddSelected': '{n} selected',
+  'favorites.bulkAddConfirm': 'Add to favorites',
+  'favorites.bulkAddNoResults': 'No matching works',
+  'favorites.bulkAddAlreadyIn': 'Already in this list',
+  'favorites.bulkAddSuccess': 'Added {n} works',
 
   // Timeline
   'timeline.title': 'Timeline',

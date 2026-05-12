@@ -16,8 +16,8 @@ export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md
   const rating = mainWatching?.rating
 
   const chipClass = work.cover_thumb_path
-    ? "absolute top-1.5 left-1.5 z-[1] px-2 py-0.5 text-[11px] font-medium tracking-wide rounded bg-black/75 text-white border border-white/30 shadow-sm pointer-events-none"
-    : "absolute top-1.5 left-1.5 z-[1] px-2 py-0.5 text-[11px] font-medium tracking-wide rounded bg-paper-200 text-ink-700 border border-paper-300 pointer-events-none"
+    ? "absolute top-1.5 left-1.5 z-[1] px-2 py-0.5 text-[12px] font-medium tracking-wide rounded bg-black/75 text-white border border-white/30 shadow-sm pointer-events-none"
+    : "absolute top-1.5 left-1.5 z-[1] px-2 py-0.5 text-[12px] font-medium tracking-wide rounded bg-paper-200 text-ink-700 border border-paper-300 pointer-events-none"
 
   return (
     <div className={`flex-shrink-0 ${sizeMap[size]} relative group`}>
@@ -41,15 +41,15 @@ export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md
         <div className="text-[13px] font-medium leading-tight line-clamp-2 group-hover:text-brand-700 transition-colors">
           {work.title}
         </div>
-        <div className="text-[11px] text-ink-500 mt-1 flex items-center gap-1.5">
+        <div className="text-[12px] text-ink-600 mt-1 flex items-center gap-1.5">
           {progress != null && (
-            <span>{progress}{total ? `/${total}` : ''}{unitLabel ? ` ${unitLabel}` : ''}</span>
+            <span className="tabular-nums">{progress}{total ? `/${total}` : ''}{unitLabel ? ` ${unitLabel}` : ''}</span>
           )}
           {rating != null && (
             <>
               {progress != null && <span className="text-ink-300">·</span>}
-              <span className="flex items-center gap-0.5 text-amber-600">
-                <Star size={10} className="fill-amber-400 text-amber-400" />
+              <span className="flex items-center gap-0.5 text-amber-700 font-medium tabular-nums">
+                <Star size={11} className="fill-amber-400 text-amber-400" />
                 {Number(rating).toFixed(1)}
               </span>
             </>
