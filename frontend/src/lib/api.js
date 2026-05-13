@@ -151,6 +151,16 @@ export const api = {
       })
   },
   getInfo: () => request('/api/admin/info'),
+
+  // ---- monthly reports ----
+  listReports: () => request('/api/reports/monthly/list'),
+  getMonthlyReport: (year, month) => request(`/api/reports/monthly?year=${year}&month=${month}`),
+  regenerateReport: (year, month) =>
+    request(`/api/reports/monthly/regenerate?year=${year}&month=${month}`, { method: 'POST' }),
+  generateAllHistory: () => request('/api/reports/monthly/generate-all-history', { method: 'POST' }),
+  shouldPromptReport: () => request('/api/reports/monthly/should-prompt'),
+  deleteReport: (year, month) =>
+    request(`/api/reports/monthly?year=${year}&month=${month}`, { method: 'DELETE' }),
 }
 
 // 把后端返回的 cover_path（如 "covers/abc.jpg"）转成可访问 URL

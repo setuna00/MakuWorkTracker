@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Edit2, Save, Download, ArrowUp, ArrowDown, Check } from 'lucide-react'
+import { Plus, Trash2, Edit2, Save, Download, ArrowUp, ArrowDown, Check, RefreshCw, BookOpen } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useT, useLocaleStore, SUPPORTED_LOCALES } from '../lib/i18n'
 import { Button, ConfirmDialog, Modal } from '../components/Modal'
 import { TagChip } from '../components/TagChip'
+import { MonthlyReportModal } from '../components/MonthlyReportModal'
 
-const SETTINGS_SECTIONS = ['tags', 'collections', 'appearance', 'data', 'about']
+const SETTINGS_SECTIONS = ['tags', 'collections', 'reports', 'appearance', 'data', 'about']
 
 function sectionFromParams(searchParams) {
   const requested = searchParams.get('tab') || searchParams.get('section')
@@ -41,6 +42,7 @@ export default function SettingsPage() {
       <div className="flex gap-1 mb-6 border-b border-paper-200 overflow-x-auto scrollbar-hide">
         <SectionTab active={section === 'tags'} onClick={() => switchSection('tags')}>{t('settings.tab.tags')}</SectionTab>
         <SectionTab active={section === 'collections'} onClick={() => switchSection('collections')}>{t('settings.tab.collections')}</SectionTab>
+        <SectionTab active={section === 'reports'} onClick={() => switchSection('reports')}>{t('settings.tab.reports')}</SectionTab>
         <SectionTab active={section === 'appearance'} onClick={() => switchSection('appearance')}>{t('settings.tab.appearance')}</SectionTab>
         <SectionTab active={section === 'data'} onClick={() => switchSection('data')}>{t('settings.tab.data')}</SectionTab>
         <SectionTab active={section === 'about'} onClick={() => switchSection('about')}>{t('settings.tab.about')}</SectionTab>
@@ -48,6 +50,7 @@ export default function SettingsPage() {
 
       {section === 'tags' && <TagsSection />}
       {section === 'collections' && <CollectionsSection />}
+      {section === 'reports' && <ReportsSection />}
       {section === 'appearance' && <AppearanceSection />}
       {section === 'data' && <DataSection />}
       {section === 'about' && <AboutSection />}
@@ -809,6 +812,128 @@ function AboutSection() {
     </div>
   )
 }
+
+// =============== 月度报告 ===============
+
+function ReportsSection() {
+  const t = useT()
+  const queryClient = useQueryClient()
+  const [openReport, setOpenReport] = useState(null)  // { year, month }
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [statusMsg, setStatusMsg] = useState('')
+
+  const { data: reports = [], isLoading } = useQuery({
+    queryKey: ['reports', 'list'],
+    queryFn: () => api.listReports(),
+  })
+
+  const generateAll = useMutation({
+    mutationFn: () => api.generateAllHistory(),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['reports', 'list'] })
+      const n = res?.generated?.length ?? res?.count ?? 0
+      setStatusMsg(t('settings.reports.generatedMsg', { n }))
+      setTimeout(() => setStatusMsg(''), 4000)
+    },
+  })
+
+  const deleteReport = useMutation({
+    mutationFn: ({ year, month }) => api.deleteReport(year, month),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reports', 'list'] })
+      setConfirmDelete(null)
+    },
+  })
+
+  // 按年分组
+  const byYear = {}
+  for (const r of reports) {
+    if (!byYear[r.year]) byYear[r.year] = []
+    byYear[r.year].push(r)
+  }
+  const sortedYears = Object.keys(byYear).map(Number).sort((a, b) => b - a)
+
+  return (
+    <div className="space-y-5">
+      <div className="card p-5">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <h2 className="font-medium text-base mb-1">{t('settings.reports.title')}</h2>
+            <p className="text-sm text-ink-500 leading-relaxed">{t('settings.reports.intro')}</p>
+          </div>
+          <Button
+            variant="default"
+            onClick={() => generateAll.mutate()}
+            disabled={generateAll.isPending}
+          >
+            <RefreshCw size={13} className={generateAll.isPending ? 'animate-spin' : ''} />
+            {t('settings.reports.generateAll')}
+          </Button>
+        </div>
+        {statusMsg && (
+          <div className="text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded px-3 py-2 mt-2">
+            {statusMsg}
+          </div>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="card p-5 text-center text-sm text-ink-400">{t('common.loading')}</div>
+      ) : reports.length === 0 ? (
+        <div className="card p-8 text-center text-sm text-ink-400">
+          <BookOpen size={28} className="mx-auto mb-2 text-ink-300" />
+          {t('settings.reports.empty')}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {sortedYears.map(year => (
+            <div key={year} className="card p-4">
+              <div className="text-sm font-semibold text-ink-700 mb-2.5 px-1">
+                {t('settings.reports.year', { year })}
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                {byYear[year].map(r => (
+                  <button
+                    key={`${r.year}-${r.month}`}
+                    onClick={() => setOpenReport({ year: r.year, month: r.month })}
+                    className="text-sm px-3 py-2 rounded-md border border-paper-300 bg-white hover:border-brand-500 hover:text-brand-700 transition-colors text-center"
+                  >
+                    {t('settings.reports.monthShort', { month: r.month })}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {openReport && (
+        <MonthlyReportModal
+          open={true}
+          year={openReport.year}
+          month={openReport.month}
+          onClose={() => setOpenReport(null)}
+          onRegenerate={() => {
+            // 简化:重新生成 + 重新打开
+            api.regenerateReport(openReport.year, openReport.month).then(() => {
+              queryClient.invalidateQueries({ queryKey: ['monthlyReport', openReport.year, openReport.month] })
+            })
+          }}
+        />
+      )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => deleteReport.mutate(confirmDelete)}
+        title={t('settings.reports.deleteTitle')}
+        message={t('settings.reports.deleteMessage', confirmDelete || {})}
+        danger
+      />
+    </div>
+  )
+}
+
 
 function Row({ label, children }) {
   return (

@@ -107,6 +107,9 @@ const zh = {
   'library.filter.newMonth': '本月新开作品（{month}）',
   'library.filter.ongoing': '更新中',
   'library.filter.finished': '完结',
+  'library.loadMore': '加载更多',
+  'library.loadingMore': '加载中…',
+  'library.allLoaded': '已显示全部 {n} 部',
 
   // Favorites page (mobile-only entry)
   'favorites.title': '收藏夹',
@@ -326,6 +329,7 @@ const zh = {
   'settings.subtitle': '管理标签、收藏夹和数据',
   'settings.tab.tags': '标签',
   'settings.tab.collections': '收藏夹',
+  'settings.tab.reports': '月度报告',
   'settings.tab.data': '数据',
   'settings.tab.about': '关于',
   'settings.tab.appearance': '外观',
@@ -393,6 +397,48 @@ const zh = {
   'settings.appearance.languageDesc': '切换界面语言。仅作用于本设备。',
   'settings.appearance.languageZh': '简体中文',
   'settings.appearance.languageEn': 'English',
+
+  // 月度报告
+  'settings.reports.title': '月度报告',
+  'settings.reports.intro': '每个月 1 号自动生成上月报告。点击下方任意月份可重新查看,点"生成全部历史"可补齐过往月份。',
+  'settings.reports.generateAll': '生成全部历史',
+  'settings.reports.generatedMsg': '已补生 {n} 份报告',
+  'settings.reports.empty': '还没有月度报告。点上方按钮可生成历史报告。',
+  'settings.reports.year': '{year} 年',
+  'settings.reports.monthShort': '{month} 月',
+  'settings.reports.deleteTitle': '删除月度报告',
+  'settings.reports.deleteMessage': '将删除 {year} 年 {month} 月的报告快照。下次需要可重新生成。',
+
+  'report.title': '{year} 年 {month} 月 · 月度报告',
+  'report.empty': '这个月没有记录。',
+  'report.regenerate': '基于当前数据重新生成',
+  'report.regenerateTip': '会用最新数据覆盖原快照',
+  'report.stats.entries': '记录条数',
+  'report.stats.activeWorks': '活跃作品',
+  'report.stats.newWorks': '新开作品',
+  'report.stats.completedWorks': '完成作品',
+  'report.typeDistribution': '类型分布',
+  'report.topTags': '高频标签',
+  'report.noTags': '本月作品都没打标签',
+  'report.ratingInsight': '评分概况',
+  'report.ratedCount': '已评分',
+  'report.averageRating': '平均分',
+  'report.highest': '最高分',
+  'report.heatmap': '记录热力图',
+  'report.heatmapLegend': '少 → 多',
+  'report.completed': '本月完成 ({n})',
+  'report.completedAndMore': '另有 {n} 部未显示',
+  'report.mon': '一',
+  'report.tue': '二',
+  'report.wed': '三',
+  'report.thu': '四',
+  'report.fri': '五',
+  'report.sat': '六',
+  'report.sun': '日',
+
+  // 通用
+  'common.close': '关闭',
+  'common.loadFailed': '加载失败',
 }
 
 const en = {
@@ -483,6 +529,9 @@ const en = {
   'library.filter.newMonth': 'New works ({month})',
   'library.filter.ongoing': 'Ongoing',
   'library.filter.finished': 'Finished',
+  'library.loadMore': 'Load more',
+  'library.loadingMore': 'Loading…',
+  'library.allLoaded': 'All {n} works loaded',
 
   // Favorites page
   'favorites.title': 'Favorites',
@@ -703,6 +752,7 @@ const en = {
   'settings.subtitle': 'Manage tags, favorites and data',
   'settings.tab.tags': 'Tags',
   'settings.tab.collections': 'Favorites',
+  'settings.tab.reports': 'Reports',
   'settings.tab.data': 'Data',
   'settings.tab.about': 'About',
   'settings.tab.appearance': 'Appearance',
@@ -770,6 +820,48 @@ const en = {
   'settings.appearance.languageDesc': 'Switch the interface language. Stored on this device.',
   'settings.appearance.languageZh': '简体中文',
   'settings.appearance.languageEn': 'English',
+
+  // Monthly reports
+  'settings.reports.title': 'Monthly Reports',
+  'settings.reports.intro': 'A new report is generated on the 1st of each month for the previous month. Click any month below to view; click "Generate all history" to backfill past months.',
+  'settings.reports.generateAll': 'Generate all history',
+  'settings.reports.generatedMsg': 'Generated {n} reports',
+  'settings.reports.empty': 'No reports yet. Click the button above to backfill history.',
+  'settings.reports.year': '{year}',
+  'settings.reports.monthShort': 'Month {month}',
+  'settings.reports.deleteTitle': 'Delete report',
+  'settings.reports.deleteMessage': 'The snapshot for {year}-{month} will be deleted. You can regenerate it later.',
+
+  'report.title': 'Report · {year}-{month}',
+  'report.empty': 'No activity this month.',
+  'report.regenerate': 'Regenerate from current data',
+  'report.regenerateTip': 'Overwrites the snapshot using the latest data',
+  'report.stats.entries': 'Entries',
+  'report.stats.activeWorks': 'Active works',
+  'report.stats.newWorks': 'New works',
+  'report.stats.completedWorks': 'Completed',
+  'report.typeDistribution': 'By type',
+  'report.topTags': 'Top tags',
+  'report.noTags': 'No tags on this month\'s works',
+  'report.ratingInsight': 'Ratings',
+  'report.ratedCount': 'Rated',
+  'report.averageRating': 'Average',
+  'report.highest': 'Highest',
+  'report.heatmap': 'Daily activity',
+  'report.heatmapLegend': 'less → more',
+  'report.completed': 'Completed ({n})',
+  'report.completedAndMore': '+{n} more',
+  'report.mon': 'M',
+  'report.tue': 'T',
+  'report.wed': 'W',
+  'report.thu': 'T',
+  'report.fri': 'F',
+  'report.sat': 'S',
+  'report.sun': 'S',
+
+  // Common
+  'common.close': 'Close',
+  'common.loadFailed': 'Load failed',
 }
 
 const translations = { 'zh-CN': zh, en }

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
 import { Filter, X, ArrowUp, ArrowDown, ChevronDown, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { resolveUnitLabel } from '../lib/format'
@@ -87,10 +87,23 @@ export default function LibraryPage() {
     setSearchParams(next)
   }
 
-  const { data: works = [] } = useQuery({
-    queryKey: ['works', filters],
-    queryFn: () => api.listWorks(filters),
+  // 分页:每次拉 PAGE_SIZE 条,滚到底自动加载下一页。
+  // 数据上千部时纯渲染 + 数据加载都明显变快。
+  const PAGE_SIZE = 60
+  const {
+    data: pagedData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetching,
+  } = useInfiniteQuery({
+    queryKey: ['works', 'paged', filters],
+    queryFn: ({ pageParam = 1 }) => api.listWorks({ ...filters, page: pageParam, page_size: PAGE_SIZE }),
+    getNextPageParam: (lastPage) => (lastPage?.has_more ? (lastPage.page + 1) : undefined),
+    initialPageParam: 1,
   })
+  const works = pagedData?.pages.flatMap(p => p.items || []) || []
+  const total = pagedData?.pages[0]?.total ?? works.length
 
   // 单位:作品的 unit_label 优先,fallback 到类型默认。然后跑 i18n 翻译。
   const getUnitLabel = (work) => translateUnit(resolveUnitLabel(work, typesMeta), t)
@@ -142,7 +155,7 @@ export default function LibraryPage() {
 
       <div className="flex items-center justify-between mb-5">
         <div className="text-sm text-ink-500">
-          <span className="font-medium text-ink-900">{works.length}</span> {t('library.countSuffix')}
+          <span className="font-medium text-ink-900">{total}</span> {t('library.countSuffix')}
           {filters.q && <span className="ml-2">{t('library.searchSuffix', { q: filters.q })}</span>}
         </div>
         <div className="flex items-center gap-2">
@@ -253,11 +266,68 @@ export default function LibraryPage() {
         </div>
       </div>
 
+      {/* 分页加载控件:sentinel 实现无限滚动,按钮兜底键盘党/Observer 失败的情况 */}
+      <LoadMoreSection
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        isFetching={isFetching}
+        fetchNextPage={fetchNextPage}
+        currentCount={works.length}
+        total={total}
+      />
+
       {bulkAddOpen && activeCollection && (
         <BulkAddToCollectionModal
           collection={activeCollection}
           onClose={() => setBulkAddOpen(false)}
         />
+      )}
+    </div>
+  )
+}
+
+function LoadMoreSection({ hasNextPage, isFetchingNextPage, isFetching, fetchNextPage, currentCount, total }) {
+  const t = useT()
+  const sentinelRef = useRef(null)
+
+  useEffect(() => {
+    if (!hasNextPage) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      // 提前 400px 触发,让滚动体感顺
+      { rootMargin: '400px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+
+  if (currentCount === 0 && !isFetching) {
+    return null
+  }
+
+  return (
+    <div className="mt-6 mb-4 flex flex-col items-center gap-2">
+      {hasNextPage && <div ref={sentinelRef} className="h-1 w-full" aria-hidden />}
+      {hasNextPage ? (
+        <button
+          onClick={() => fetchNextPage()}
+          disabled={isFetchingNextPage}
+          className="text-sm px-4 py-2 rounded-md border border-paper-300 bg-white hover:border-brand-500 hover:text-brand-700 transition-colors disabled:opacity-50"
+        >
+          {isFetchingNextPage ? t('library.loadingMore') : t('library.loadMore')}
+        </button>
+      ) : (
+        currentCount > 0 && currentCount < total ? null : (
+          <div className="text-xs text-ink-400 py-2">
+            {t('library.allLoaded', { n: total })}
+          </div>
+        )
       )}
     </div>
   )

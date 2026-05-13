@@ -125,3 +125,22 @@ class ProgressEntry(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow)
 
     watching: Optional[Watching] = Relationship(back_populates="entries")
+
+
+# ---------- MonthlyReport ----------
+
+class MonthlyReport(SQLModel, table=True):
+    """月度报告快照。每月生成一次,JSON 形式存储,后续数据变化不会改变历史报告。
+
+    生成时机:
+      - 启用功能时一次性补生所有历史月
+      - 之后每月 1 号首次访问时自动生成上一月
+      - 用户也可在设置里手动重新生成某月(会覆盖)
+    """
+    __table_args__ = (UniqueConstraint("year", "month", name="uq_report_year_month"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    year: int = Field(index=True)
+    month: int = Field(index=True)              # 1-12
+    data: str                                    # JSON 字符串
+    generated_at: datetime = Field(default_factory=utcnow)

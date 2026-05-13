@@ -73,7 +73,7 @@ def _watching_with_progress(session: Session, w: Watching) -> WatchingRead:
     )
 
 
-@router.get("", response_model=List[WorkRead])
+@router.get("")
 def list_works(
     session: Session = Depends(get_session),
     type: Optional[WorkType] = None,
@@ -86,7 +86,19 @@ def list_works(
     order: str = Query("desc", regex="^(asc|desc)$"),
     active_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
     new_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
+    page: Optional[int] = Query(None, ge=1),
+    page_size: Optional[int] = Query(None, ge=1, le=500),
 ):
+    """
+    作品列表。分页约定:
+    - 不传 page / page_size:返回 list(向后兼容 ── 调用方如 BulkAddToCollectionModal 期望全量)
+    - 传了任一参数:返回 dict { items, total, page, page_size, has_more }
+    - 有自由文本 q 时强制全量(拼音过滤在 Python 端,无法 OFFSET);
+      仍按分页结构返回,但 has_more=False 且 total=len(items)
+    """
+    paginated = (page is not None) or (page_size is not None)
+    effective_page = page or 1
+    effective_size = page_size or 60
     stmt = select(Work).distinct()
 
     # ASCII 查询(英文/拼音)统一走 Python 后处理；中文查询走 SQL LIKE
@@ -282,15 +294,70 @@ def list_works(
 
         works = [w for w in works if matches(w)]
 
-    # 给每个 work 填充 main 周目信息(用于列表页显示进度/评分)
-    out = []
-    for w in works:
-        wr = WorkRead.model_validate(w)
+    total = len(works)
+
+    # 分页 slice (Python 端,因为 pinyin 过滤之后才知道最终列表)
+    has_pinyin = bool(pinyin_filters)
+    if paginated and not has_pinyin:
+        start = (effective_page - 1) * effective_size
+        end = start + effective_size
+        page_works = works[start:end]
+        has_more = end < total
+    else:
+        # 有 pinyin 时即使传了 page 也返回全部(因为后端排不了序了)
+        page_works = works
+        has_more = False
+
+    # 批量化:一次拿到所有 main watching 的 max(range_end) 和 count(id),避免 N+1。
+    # 没有 main_watching 的 work 不查。
+    main_ids = []
+    main_by_work = {}
+    for w in page_works:
         main = next((x for x in w.watchings if x.round_number == 1), None)
         if main is not None:
-            wr.main_watching = _watching_with_progress(session, main)
-        out.append(wr)
-    return out
+            main_ids.append(main.id)
+            main_by_work[w.id] = main
+
+    progress_agg = {}
+    if main_ids:
+        agg_rows = session.exec(
+            select(
+                ProgressEntry.watching_id,
+                func.max(ProgressEntry.range_end),
+                func.count(ProgressEntry.id),
+            )
+            .where(ProgressEntry.watching_id.in_(main_ids))
+            .group_by(ProgressEntry.watching_id)
+        ).all()
+        for wid, max_end, cnt in agg_rows:
+            progress_agg[wid] = (max_end, cnt or 0)
+
+    items = []
+    for w in page_works:
+        wr = WorkRead.model_validate(w)
+        main = main_by_work.get(w.id)
+        if main is not None:
+            cp, ec = progress_agg.get(main.id, (None, 0))
+            wr.main_watching = WatchingRead(
+                id=main.id, work_id=main.work_id, round_number=main.round_number,
+                label=main.label, personal_status=main.personal_status, rating=main.rating,
+                overall_review=main.overall_review,
+                started_at=main.started_at, finished_at=main.finished_at,
+                created_at=main.created_at, updated_at=main.updated_at,
+                current_progress=cp,
+                entries_count=ec,
+            )
+        items.append(wr)
+
+    if paginated:
+        return {
+            "items": items,
+            "total": total,
+            "page": effective_page,
+            "page_size": effective_size,
+            "has_more": has_more,
+        }
+    return items
 
 
 @router.get("/{work_id}", response_model=WorkDetailRead)

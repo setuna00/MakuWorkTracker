@@ -8,6 +8,7 @@ import NewWorkPage from './pages/NewWorkPage'
 import QuickRecordPage from './pages/QuickRecordPage'
 import SettingsPage from './pages/SettingsPage'
 import FavoritesPage from './pages/FavoritesPage'
+import { ReportPrompt } from './components/MonthlyReportModal'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/quick-record" element={<QuickRecordPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
+      <ReportPrompt />
     </Layout>
   )
 }
