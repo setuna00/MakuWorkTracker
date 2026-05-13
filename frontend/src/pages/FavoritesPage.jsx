@@ -49,7 +49,7 @@ export default function FavoritesPage() {
                 {c.name}
               </span>
               <span className="text-xs text-ink-400 tabular-nums flex-shrink-0">
-                {t('favorites.workCount', { n: c.work_count ?? c.works_count ?? 0 })}
+                {t('favorites.workCount', { n: c.work_count })}
               </span>
               <ChevronRight size={16} className="text-ink-400 flex-shrink-0" />
             </Link>

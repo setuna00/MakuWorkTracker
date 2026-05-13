@@ -258,14 +258,71 @@ def recommendations(
 
 
 @router.get("/api/stats/type-counts")
-def type_counts(session: Session = Depends(get_session)):
+def type_counts(
+    collection_id: Optional[int] = Query(None),
+    active_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
+    new_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
+    session: Session = Depends(get_session),
+):
     """每个 WorkType 的作品总数,用于作品库类型 Tab 展示数字。
 
-    包含 total 字段表示全部作品数,前端"全部"标签可用。
+    支持的上下文过滤(与 list_works 行为对齐,保证 tab 数字 = 实际筛选结果):
+      - collection_id:只数该收藏夹中的作品
+      - active_month (YYYY-MM):只数该月有进度记录的作品
+      - new_month (YYYY-MM):只数该月首次出现进度的作品
+    多个条件按 AND 组合。
     """
-    rows = session.exec(
-        select(Work.type, func.count(Work.id)).group_by(Work.type)
-    ).all()
+    from ..models import WorkCollectionLink
+
+    stmt = select(Work.type, func.count(func.distinct(Work.id))).group_by(Work.type)
+
+    if collection_id is not None:
+        stmt = stmt.join(WorkCollectionLink, WorkCollectionLink.work_id == Work.id) \
+                   .where(WorkCollectionLink.collection_id == collection_id)
+
+    if active_month or new_month:
+        target = active_month or new_month
+        year = int(target[:4])
+        month = int(target[5:7])
+        ny, nm = (year + 1, 1) if month == 12 else (year, month + 1)
+        month_start = date(year, month, 1)
+        month_end = date(ny, nm, 1)
+
+        if active_month:
+            active_subq = (
+                select(Watching.work_id)
+                .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+                .where(
+                    ProgressEntry.date >= month_start,
+                    ProgressEntry.date < month_end,
+                    ProgressEntry.is_backfill == False,
+                )
+                .distinct()
+                .subquery()
+            )
+            stmt = stmt.where(Work.id.in_(select(active_subq.c.work_id)))
+
+        if new_month:
+            first_subq = (
+                select(
+                    Watching.work_id.label("wid"),
+                    func.min(ProgressEntry.date).label("first_date"),
+                )
+                .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+                .where(ProgressEntry.is_backfill == False)
+                .group_by(Watching.work_id)
+                .subquery()
+            )
+            stmt = stmt.where(
+                Work.id.in_(
+                    select(first_subq.c.wid)
+                    .where(first_subq.c.first_date >= month_start)
+                    .where(first_subq.c.first_date < month_end)
+                )
+            )
+
+    rows = session.exec(stmt).all()
+
     counts = {t.value: 0 for t in WorkType}
     total = 0
     for ty, cnt in rows:

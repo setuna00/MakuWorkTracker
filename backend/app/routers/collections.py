@@ -2,7 +2,7 @@
 from typing import List
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from ..db import get_session
 from ..models import Collection, Work, WorkCollectionLink
 from ..schemas import CollectionCreate, CollectionUpdate, CollectionRead
@@ -13,7 +13,17 @@ router = APIRouter(prefix="/api/collections", tags=["collections"])
 @router.get("", response_model=List[CollectionRead])
 def list_collections(session: Session = Depends(get_session)):
     cols = session.exec(select(Collection).order_by(Collection.sort_order, Collection.name)).all()
-    return [CollectionRead.model_validate(c) for c in cols]
+    # 一次查所有 collection 的作品数,避免 N+1
+    counts = dict(session.exec(
+        select(WorkCollectionLink.collection_id, func.count(WorkCollectionLink.work_id))
+        .group_by(WorkCollectionLink.collection_id)
+    ).all())
+    out = []
+    for c in cols:
+        cr = CollectionRead.model_validate(c)
+        cr.work_count = counts.get(c.id, 0)
+        out.append(cr)
+    return out
 
 
 @router.post("", response_model=CollectionRead)

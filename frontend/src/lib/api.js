@@ -128,7 +128,12 @@ export const api = {
     request(`/api/stats/recent-activity?days=${days}&limit=${limit}`),
   getRecommendations: (limit = 7, seed = 0) =>
     request(`/api/stats/recommendations?limit=${limit}&seed=${seed}`),
-  getTypeCounts: () => request('/api/stats/type-counts'),
+  getTypeCounts: (params = {}) => {
+    const q = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    ).toString()
+    return request(`/api/stats/type-counts${q ? '?' + q : ''}`)
+  },
 
   // ---- admin ----
   triggerBackup: () => request('/api/admin/backup', { method: 'POST' }),

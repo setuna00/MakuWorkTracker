@@ -62,7 +62,7 @@ export function WorkCard({ work, mainWatching, onQuickAdd, unitLabel, size = 'md
       {onQuickAdd && (
         <button
           onClick={(e) => { e.preventDefault(); onQuickAdd() }}
-          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-brand-600/90 hover:bg-brand-700 text-white flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+          className="hidden md:flex absolute top-2 right-2 w-7 h-7 rounded-full bg-brand-600/90 hover:bg-brand-700 text-white items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
           title={t('card.quickRecord')}
         >
           <Plus size={14} />

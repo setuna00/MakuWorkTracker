@@ -223,14 +223,14 @@ a:not(.no-style) { color: inherit; }
 
 
 
-/* iOS Safari 会在聚焦小于 16px 的输入框时自动放大页面。
-   移动端统一把输入字号提升到 16px，避免首页搜索框/表单聚焦时 zoom in。 */
+/* 移动端输入控件 ≥ 16px,无障碍底线(同时避免 iOS Safari 聚焦自动放大)。
+   用 !important 是因为这是可读性底线,不应被任何组件级 Tailwind class(如 text-sm/text-xs/text-[13px])
+   覆盖。桌面端不受影响,组件仍可自由使用更小字号。
+   排除 checkbox/radio/range,这些原生控件没有"字号过小"的问题。 */
 @media (max-width: 767px) {
-  input,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   textarea,
-  select,
-  input.input-compact,
-  select.input-compact {
-    font-size: 16px;
+  select {
+    font-size: 16px !important;
   }
 }

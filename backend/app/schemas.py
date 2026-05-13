@@ -74,6 +74,7 @@ class CollectionRead(BaseModel):
     border_color: str
     sort_order: int
     created_at: datetime
+    work_count: int = 0  # list_collections 接口会填(收藏夹包含的作品数);单条 CRUD 时默认 0
 
 
 # ---------- Watching ----------

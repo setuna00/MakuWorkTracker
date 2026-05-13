@@ -33,7 +33,6 @@ export default function LibraryPage() {
   })
   const { data: collections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
   const { data: tagGroups = [] } = useQuery({ queryKey: ['tagGroups'], queryFn: api.listTagGroups })
-  const { data: typeCounts } = useQuery({ queryKey: ['typeCounts'], queryFn: api.getTypeCounts })
 
   const tagIds = searchParams.getAll('tag').map(s => Number(s)).filter(n => !Number.isNaN(n))
 
@@ -49,6 +48,18 @@ export default function LibraryPage() {
     active_month: searchParams.get('active') || '',
     new_month: searchParams.get('new') || '',
   }
+
+  // 类型 Tab 的计数要跟当前的 collection / active_month / new_month 上下文对齐,
+  // 否则进入收藏夹后 tab 数字会和实际筛出来的列表对不上
+  const countCtx = {
+    collection_id: filters.collection_id || undefined,
+    active_month: filters.active_month || undefined,
+    new_month: filters.new_month || undefined,
+  }
+  const { data: typeCounts } = useQuery({
+    queryKey: ['typeCounts', countCtx],
+    queryFn: () => api.getTypeCounts(countCtx),
+  })
 
   const setFilter = (key, value) => {
     const next = new URLSearchParams(searchParams)
