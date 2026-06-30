@@ -260,8 +260,8 @@ def recommendations(
 @router.get("/api/stats/type-counts")
 def type_counts(
     collection_id: Optional[int] = Query(None),
-    active_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
-    new_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
+    active_month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    new_month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),
     session: Session = Depends(get_session),
 ):
     """每个 WorkType 的作品总数,用于作品库类型 Tab 展示数字。

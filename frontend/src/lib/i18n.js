@@ -110,6 +110,8 @@ const zh = {
   'library.loadMore': '加载更多',
   'library.loadingMore': '加载中…',
   'library.allLoaded': '已显示全部 {n} 部',
+  'library.loadError': '加载失败，请重试',
+  'library.retry': '重试',
 
   // Favorites page (mobile-only entry)
   'favorites.title': '收藏夹',
@@ -532,6 +534,8 @@ const en = {
   'library.loadMore': 'Load more',
   'library.loadingMore': 'Loading…',
   'library.allLoaded': 'All {n} works loaded',
+  'library.loadError': 'Failed to load. Please try again.',
+  'library.retry': 'Retry',
 
   // Favorites page
   'favorites.title': 'Favorites',

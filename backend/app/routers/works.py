@@ -3,6 +3,7 @@ import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from sqlmodel import Session, select, func
+from sqlalchemy.orm import aliased
 from ..db import get_session
 from ..models import Work, Tag, Collection, Watching, ProgressEntry
 from ..models.enums import WorkType, ReleaseStatus, PersonalStatus, TYPES_WITH_RANGE_PROGRESS
@@ -82,10 +83,10 @@ def list_works(
     tag_id: Optional[List[int]] = Query(None),  # 多值 AND：作品需同时拥有所有传入 tag
     collection_id: Optional[int] = Query(None),
     q: Optional[str] = None,
-    sort: str = Query("updated_at", regex="^(updated_at|created_at|title|rating|last_progress)$"),
-    order: str = Query("desc", regex="^(asc|desc)$"),
-    active_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
-    new_month: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}$"),
+    sort: str = Query("updated_at", pattern="^(updated_at|created_at|title|rating|last_progress)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
+    active_month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    new_month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),
     page: Optional[int] = Query(None, ge=1),
     page_size: Optional[int] = Query(None, ge=1, le=500),
 ):
@@ -221,19 +222,26 @@ def list_works(
             )
             stmt = stmt.where(Work.id.in_(select(new_filtered_subq.c.wid)))
 
-    if personal_status is not None:
-        # 按 main 周目（round_number=1）的状态筛选
-        stmt = stmt.join(Watching, Watching.work_id == Work.id).where(
-            Watching.round_number == 1,
-            Watching.personal_status == personal_status,
+    # 主周目（round_number=1）别名：personal_status 筛选和 rating 排序共用同一个 join，
+    # 避免对 Watching 表做两次未取别名的 join 导致 SQLite "ambiguous column name" 报错。
+    main_w = aliased(Watching)
+    need_main_join = personal_status is not None or sort == "rating"
+    if need_main_join:
+        stmt = stmt.outerjoin(
+            main_w, (main_w.work_id == Work.id) & (main_w.round_number == 1)
         )
+
+    if personal_status is not None:
+        # outer join + where 等价于"有主周目且状态匹配"：main_w 为 NULL 的行
+        # （无 round1 周目）personal_status 也为 NULL，自然被过滤，语义与 inner join 一致。
+        stmt = stmt.where(main_w.personal_status == personal_status)
 
     # 排序
     if sort == "rating":
-        # 按 main 周目评分（要 join）
-        stmt = stmt.outerjoin(Watching, (Watching.work_id == Work.id) & (Watching.round_number == 1))
-        col = Watching.rating
-        stmt = stmt.order_by(col.desc() if order == "desc" else col.asc())
+        # 按 main 周目评分。nullslast 让未评分作品始终沉底（与 last_progress 一致）。
+        col = main_w.rating
+        stmt = stmt.order_by(col.desc().nullslast() if order == "desc"
+                             else col.asc().nullslast())
     elif sort == "last_progress":
         # 按"最近一条进度记录"排序。
         # 用 progress.id(自增主键)而不是 date 或 created_at,因为:

@@ -96,6 +96,8 @@ export default function LibraryPage() {
     hasNextPage,
     isFetchingNextPage,
     isFetching,
+    isError,
+    refetch,
   } = useInfiniteQuery({
     queryKey: ['works', 'paged', filters],
     queryFn: ({ pageParam = 1 }) => api.listWorks({ ...filters, page: pageParam, page_size: PAGE_SIZE }),
@@ -155,7 +157,7 @@ export default function LibraryPage() {
 
       <div className="flex items-center justify-between mb-5">
         <div className="text-sm text-ink-500">
-          <span className="font-medium text-ink-900">{total}</span> {t('library.countSuffix')}
+          <span className="font-medium text-ink-900">{isError ? '—' : total}</span> {t('library.countSuffix')}
           {filters.q && <span className="ml-2">{t('library.searchSuffix', { q: filters.q })}</span>}
         </div>
         <div className="flex items-center gap-2">
@@ -255,26 +257,41 @@ export default function LibraryPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-x-4 gap-y-6">
-        {works.map(w => (
-          <div key={w.id} className="w-full">
-            <WorkCard work={w} mainWatching={w.main_watching} unitLabel={getUnitLabel(w)} size="lg" />
-          </div>
-        ))}
-        <div className="w-full">
-          <EmptyAddCard />
+      {/* 接口报错时显式提示并提供重试,避免静默退化成"0 件"误导用户 */}
+      {isError ? (
+        <div className="card p-8 flex flex-col items-center gap-3 text-center">
+          <div className="text-sm text-ink-600">{t('library.loadError')}</div>
+          <button
+            onClick={() => refetch()}
+            className="text-sm px-4 py-2 rounded-md border border-paper-300 bg-white hover:border-brand-500 hover:text-brand-700 transition-colors"
+          >
+            {t('library.retry')}
+          </button>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-x-4 gap-y-6">
+            {works.map(w => (
+              <div key={w.id} className="w-full">
+                <WorkCard work={w} mainWatching={w.main_watching} unitLabel={getUnitLabel(w)} size="lg" />
+              </div>
+            ))}
+            <div className="w-full">
+              <EmptyAddCard />
+            </div>
+          </div>
 
-      {/* 分页加载控件:sentinel 实现无限滚动,按钮兜底键盘党/Observer 失败的情况 */}
-      <LoadMoreSection
-        hasNextPage={hasNextPage}
-        isFetchingNextPage={isFetchingNextPage}
-        isFetching={isFetching}
-        fetchNextPage={fetchNextPage}
-        currentCount={works.length}
-        total={total}
-      />
+          {/* 分页加载控件:sentinel 实现无限滚动,按钮兜底键盘党/Observer 失败的情况 */}
+          <LoadMoreSection
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetching={isFetching}
+            fetchNextPage={fetchNextPage}
+            currentCount={works.length}
+            total={total}
+          />
+        </>
+      )}
 
       {bulkAddOpen && activeCollection && (
         <BulkAddToCollectionModal
