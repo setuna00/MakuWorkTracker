@@ -115,12 +115,13 @@ def export_csv(session: Session = Depends(get_session)):
         # works.csv
         sb = io.StringIO()
         wr = csv.writer(sb)
-        wr.writerow(["id", "title", "original_title", "type", "release_status",
+        wr.writerow(["id", "title", "original_title", "release_year", "type", "release_status",
                      "total_units", "creators", "tags", "collections",
                      "created_at", "updated_at"])
         for w in works:
             wr.writerow([
-                w.id, w.title, w.original_title or "", w.type.value, w.release_status.value,
+                w.id, w.title, w.original_title or "", w.release_year or "",
+                w.type.value, w.release_status.value,
                 w.total_units or "",
                 json.dumps(w.creators, ensure_ascii=False),
                 "|".join(t.name for t in w.tags),
@@ -300,6 +301,7 @@ def import_json_backup(file: UploadFile = File(...), session: Session = Depends(
                     id=w.get("id"),
                     title=w["title"],
                     original_title=w.get("original_title"),
+                    release_year=w.get("release_year"),
                     type=w["type"],
                     cover_path=w.get("cover_path"),
                     cover_thumb_path=w.get("cover_thumb_path"),

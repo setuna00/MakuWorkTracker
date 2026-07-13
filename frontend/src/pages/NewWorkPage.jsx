@@ -16,6 +16,7 @@ export default function NewWorkPage() {
   const [type, setType] = useState(null)
   const [title, setTitle] = useState('')
   const [originalTitle, setOriginalTitle] = useState('')
+  const [releaseYear, setReleaseYear] = useState('')
   const [description, setDescription] = useState('')
   const [coverFile, setCoverFile] = useState(null)
   const [pendingFile, setPendingFile] = useState(null)
@@ -116,6 +117,7 @@ export default function NewWorkPage() {
     const payload = {
       title,
       original_title: originalTitle || null,
+      release_year: releaseYear ? parseInt(releaseYear, 10) : null,
       type,
       description: description || null,
       release_status: isMovie ? 'finished' : releaseStatus,
@@ -202,9 +204,15 @@ export default function NewWorkPage() {
                            hasError={!!titleError} />
               </Field>
 
-              <Field span={12} label={t('newWork.step2.originalTitle')} hint={t('common.optional')}>
+              <Field span={6} label={t('newWork.step2.originalTitle')} hint={t('common.optional')}>
                 <TextInput value={originalTitle} onChange={(e) => setOriginalTitle(e.target.value)}
                            placeholder={t('newWork.step2.originalTitlePlaceholder')} />
+              </Field>
+
+              <Field span={6} label={t('newWork.step2.releaseYear')} hint={t('common.optional')}>
+                <TextInput type="number" min={1} max={9999} inputMode="numeric"
+                           value={releaseYear} onChange={(e) => setReleaseYear(e.target.value)}
+                           placeholder="2024" />
               </Field>
 
               {typeMeta?.creator_fields?.length === 2 && (

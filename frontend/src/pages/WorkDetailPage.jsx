@@ -137,9 +137,15 @@ export default function WorkDetailPage() {
               <div className="text-sm text-ink-500 mb-4">{work.original_title}</div>
             )}
 
-            {typeMeta?.creator_fields?.length > 0 && (
+            {(work.release_year || typeMeta?.creator_fields?.length > 0) && (
               <div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 text-[13px] mb-4">
-                {typeMeta.creator_fields.map(f => (
+                {work.release_year && (
+                  <div className="contents">
+                    <span className="text-ink-400">{t('workDetail.releaseYear')}</span>
+                    <span className="text-ink-700 tabular-nums">{work.release_year}</span>
+                  </div>
+                )}
+                {typeMeta?.creator_fields?.map(f => (
                   <div key={f.key} className="contents">
                     <span className="text-ink-400">{translateCreatorLabel(f, t)}</span>
                     <span className="text-ink-700">{work.creators?.[f.key] || '-'}</span>
@@ -421,10 +427,16 @@ function MobileWorkDetail({
               <div className="mt-0.5 text-[13px] text-ink-500 break-words">{work.original_title}</div>
             )}
 
-            {/* 制作者信息 */}
-            {typeMeta?.creator_fields?.length > 0 && (
+            {/* 年份与制作者信息 */}
+            {(work.release_year || typeMeta?.creator_fields?.length > 0) && (
               <div className="mt-2.5 space-y-1 text-[12px]">
-                {typeMeta.creator_fields.map(f => (
+                {work.release_year && (
+                  <div className="flex gap-2">
+                    <span className="text-ink-400 flex-shrink-0">{t('workDetail.releaseYear')}</span>
+                    <span className="text-ink-700 tabular-nums">{work.release_year}</span>
+                  </div>
+                )}
+                {typeMeta?.creator_fields?.map(f => (
                   <div key={f.key} className="flex gap-2">
                     <span className="text-ink-400 flex-shrink-0">{translateCreatorLabel(f, t)}</span>
                     <span className="text-ink-700 min-w-0 break-words">{work.creators?.[f.key] || '-'}</span>
@@ -962,6 +974,7 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(work.title)
   const [originalTitle, setOriginalTitle] = useState(work.original_title || '')
+  const [releaseYear, setReleaseYear] = useState(work.release_year || '')
   const [description, setDescription] = useState(work.description || '')
   const [releaseStatus, setReleaseStatus] = useState(work.release_status)
   const [totalUnits, setTotalUnits] = useState(work.total_units || '')
@@ -992,6 +1005,7 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
   const update = useMutation({
     mutationFn: () => api.updateWork(work.id, {
       title, original_title: originalTitle || null,
+      release_year: releaseYear ? parseInt(releaseYear, 10) : null,
       description: description || null,
       release_status: isMovie ? 'finished' : releaseStatus,
       total_units: isMovie ? 1 : (totalUnits ? parseInt(totalUnits) : null),
@@ -1051,16 +1065,30 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
             onChange={(e) => setTitle(e.target.value)}
           />
         </Field>
-        <Field label={t('workDetail.editFieldOriginalTitle')}>
-          <input
-            className={EDIT_FIELD_CONTROL}
-            value={originalTitle}
-            onChange={(e) => setOriginalTitle(e.target.value)}
-          />
-        </Field>
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_9rem] gap-3">
+          <Field label={t('workDetail.editFieldOriginalTitle')}>
+            <input
+              className={EDIT_FIELD_CONTROL}
+              value={originalTitle}
+              onChange={(e) => setOriginalTitle(e.target.value)}
+            />
+          </Field>
+          <Field label={t('newWork.step2.releaseYear')}>
+            <input
+              className={`${EDIT_FIELD_CONTROL} !h-11 !px-3.5`}
+              type="number"
+              min={1}
+              max={9999}
+              inputMode="numeric"
+              value={releaseYear}
+              onChange={(e) => setReleaseYear(e.target.value)}
+              placeholder="2024"
+            />
+          </Field>
+        </div>
 
         {typeMeta?.creator_fields?.length > 0 && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {typeMeta.creator_fields.map(f => (
               <Field key={f.key} label={translateCreatorLabel(f, t)}>
                 <input
@@ -1084,7 +1112,7 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
 
         {!isMovie && (
           <>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label={t('newWork.step2.releaseStatus')}>
                 <select
                   className={EDIT_FIELD_CONTROL}

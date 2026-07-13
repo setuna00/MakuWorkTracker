@@ -397,6 +397,7 @@ def create_work(
     work = Work(
         title=data.title,
         original_title=data.original_title,
+        release_year=data.release_year,
         type=data.type,
         description=data.description,
         release_status=data.release_status,

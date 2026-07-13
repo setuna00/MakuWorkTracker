@@ -66,6 +66,7 @@ class Work(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(index=True)
     original_title: Optional[str] = None
+    release_year: Optional[int] = None
     type: WorkType = Field(index=True)
     cover_path: Optional[str] = None       # 相对 data_dir 的路径
     cover_thumb_path: Optional[str] = None

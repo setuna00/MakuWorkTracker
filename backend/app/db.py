@@ -61,6 +61,7 @@ def _run_lightweight_migrations() -> None:
     migrations = [
         # (table, column, ALTER 语句)
         ("work", "unit_label", "ALTER TABLE work ADD COLUMN unit_label VARCHAR"),
+        ("work", "release_year", "ALTER TABLE work ADD COLUMN release_year INTEGER"),
     ]
     with engine.begin() as conn:
         for table, column, ddl in migrations:

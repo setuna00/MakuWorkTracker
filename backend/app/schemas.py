@@ -158,6 +158,7 @@ class WorkCreateBackfill(BaseModel):
 class WorkCreate(BaseModel):
     title: str
     original_title: Optional[str] = None
+    release_year: Optional[int] = Field(None, ge=1, le=9999)
     type: WorkType
     description: Optional[str] = None
     release_status: ReleaseStatus = ReleaseStatus.ongoing
@@ -175,6 +176,7 @@ class WorkCreate(BaseModel):
 class WorkUpdate(BaseModel):
     title: Optional[str] = None
     original_title: Optional[str] = None
+    release_year: Optional[int] = Field(None, ge=1, le=9999)
     description: Optional[str] = None
     release_status: Optional[ReleaseStatus] = None
     total_units: Optional[int] = None
@@ -190,6 +192,7 @@ class WorkRead(BaseModel):
     id: int
     title: str
     original_title: Optional[str]
+    release_year: Optional[int]
     type: WorkType
     cover_path: Optional[str]
     cover_thumb_path: Optional[str]
