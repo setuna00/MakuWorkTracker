@@ -210,7 +210,7 @@ export default function HomePage() {
       {recordingWork && workForRecord && (
         <QuickRecordModal
           work={workForRecord}
-          watching={workForRecord.watchings.find(w => w.round_number === 1)}
+          watching={workForRecord.watchings.reduce((latest, w) => !latest || w.round_number > latest.round_number ? w : latest, null)}
           onClose={() => setRecordingWork(null)}
           typesMeta={typesMeta.types}
         />

@@ -44,8 +44,12 @@ export default function WorkDetailPage() {
   })
 
   useEffect(() => {
-    if (work && activeRound == null) {
-      setActiveRound(1)
+    setActiveRound(null)
+  }, [id])
+
+  useEffect(() => {
+    if (work?.watchings?.length && activeRound == null) {
+      setActiveRound(Math.max(...work.watchings.map(w => w.round_number)))
     }
   }, [work, activeRound])
 
@@ -57,7 +61,7 @@ export default function WorkDetailPage() {
   const isMovie = work?.type === 'movie'
 
   const currentWatching = work?.watchings.find(w => w.round_number === activeRound)
-  const canDeleteRound = work?.watchings?.length > 1 && activeRound !== 1
+  const canDeleteRound = work?.watchings?.length > 1
 
   const { data: entries = [] } = useQuery({
     queryKey: ['entries', currentWatching?.id],
@@ -93,8 +97,12 @@ export default function WorkDetailPage() {
     mutationFn: () => api.deleteWatching(currentWatching.id),
     onSuccess: () => {
       setConfirmDeleteRound(false)
-      setActiveRound(1)
+      const remainingRounds = work.watchings
+        .filter(w => w.id !== currentWatching.id)
+        .map(w => w.round_number)
+      setActiveRound(remainingRounds.length ? Math.max(...remainingRounds) : null)
       queryClient.invalidateQueries({ queryKey: ['work', id] })
+      queryClient.invalidateQueries({ queryKey: ['works'] })
     },
   })
 
@@ -576,9 +584,10 @@ function RoundSwitcher({ work, activeRound, onSwitch }) {
   const currentLabel = current?.label || t('workDetail.round', { n: activeRound })
 
   const createMut = useMutation({
-    mutationFn: () => api.createWatching(work.id, { personal_status: 'want' }),
+    mutationFn: () => api.createWatching(work.id, { personal_status: 'watching' }),
     onSuccess: (newW) => {
       queryClient.invalidateQueries({ queryKey: ['work', String(work.id)] })
+      queryClient.invalidateQueries({ queryKey: ['works'] })
       setOpen(false)
       onSwitch(newW.round_number)
     },
@@ -593,7 +602,7 @@ function RoundSwitcher({ work, activeRound, onSwitch }) {
       </button>
       {open && (
         <div className="absolute top-full mt-1 right-0 bg-white border border-paper-200 rounded-md shadow-xl overflow-hidden min-w-[200px] z-20">
-          {work.watchings.map(w => (
+          {[...work.watchings].sort((a, b) => b.round_number - a.round_number).map(w => (
             <button key={w.id}
                     onClick={() => { onSwitch(w.round_number); setOpen(false) }}
                     className={`block w-full text-left px-3 py-2 text-xs hover:bg-paper-100 transition-colors ${

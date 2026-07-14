@@ -140,11 +140,23 @@ def generate_monthly_report(session: Session, year: int, month: int) -> dict:
     # 后续如果想做更精确的"本月新增评分",得加 rating_updated_at 字段。
     rating_insight = None
     if active_work_ids:
+        latest_rounds = (
+            select(
+                Watching.work_id.label("work_id"),
+                func.max(Watching.round_number).label("round_number"),
+            )
+            .group_by(Watching.work_id)
+            .subquery()
+        )
         rated_rows = session.exec(
             select(Work.id, Work.title, Watching.rating)
-            .join(Watching, Watching.work_id == Work.id)
+            .join(latest_rounds, latest_rounds.c.work_id == Work.id)
+            .join(
+                Watching,
+                (Watching.work_id == latest_rounds.c.work_id)
+                & (Watching.round_number == latest_rounds.c.round_number),
+            )
             .where(Work.id.in_(active_work_ids))
-            .where(Watching.round_number == 1)
             .where(Watching.rating.is_not(None))
         ).all()
         if rated_rows:
@@ -177,7 +189,6 @@ def generate_monthly_report(session: Session, year: int, month: int) -> dict:
         .join(Watching, Watching.work_id == Work.id)
         .where(Watching.finished_at >= month_start)
         .where(Watching.finished_at < month_end)
-        .where(Watching.round_number == 1)
         .order_by(Watching.finished_at.desc())
     ).all()
     completed_list = [

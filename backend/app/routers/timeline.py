@@ -217,11 +217,23 @@ def recommendations(
             for t in w.tags:
                 tag_freq[t.id] += 1
 
-    # 3. 拿到所有 want 作品(main 周目 personal_status=want)
+    # 3. 只按每部作品的当前最新周目判断是否想看；旧周目不再影响推荐。
+    latest_rounds = (
+        select(
+            Watching.work_id.label("work_id"),
+            func.max(Watching.round_number).label("round_number"),
+        )
+        .group_by(Watching.work_id)
+        .subquery()
+    )
     want_works = session.exec(
         select(Work)
-        .join(Watching, Watching.work_id == Work.id)
-        .where(Watching.round_number == 1)
+        .join(latest_rounds, latest_rounds.c.work_id == Work.id)
+        .join(
+            Watching,
+            (Watching.work_id == latest_rounds.c.work_id)
+            & (Watching.round_number == latest_rounds.c.round_number),
+        )
         .where(Watching.personal_status == PersonalStatus.want)
         .distinct()
     ).all()
@@ -250,9 +262,9 @@ def recommendations(
     out = []
     for w in picked:
         wr = WorkRead.model_validate(w)
-        main = next((x for x in w.watchings if x.round_number == 1), None)
-        if main is not None:
-            wr.main_watching = _watching_with_progress(session, main)
+        current = max(w.watchings, key=lambda x: x.round_number, default=None)
+        if current is not None:
+            wr.main_watching = _watching_with_progress(session, current)
         out.append(wr)
     return out
 

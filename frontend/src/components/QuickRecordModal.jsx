@@ -14,7 +14,7 @@ export function QuickRecordModal({ work, watching, onClose, typesMeta }) {
   const rawUnit = typeMeta?.unit_label || '集'
   const unitLabel = translateUnit(rawUnit, t)
 
-  const targetWatching = watching || work.watchings?.find(w => w.round_number === 1)
+  const targetWatching = watching || work.watchings?.reduce((latest, w) => !latest || w.round_number > latest.round_number ? w : latest, null)
   const currentMax = targetWatching?.current_progress || 0
 
   const [start, setStart] = useState(currentMax + 1)

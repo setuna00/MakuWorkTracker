@@ -81,7 +81,7 @@ class CollectionRead(BaseModel):
 
 class WatchingCreate(BaseModel):
     label: Optional[str] = None
-    personal_status: PersonalStatus = PersonalStatus.want
+    personal_status: PersonalStatus = PersonalStatus.watching
 
 
 class WatchingUpdate(BaseModel):
@@ -206,7 +206,7 @@ class WorkRead(BaseModel):
     updated_at: datetime
     tags: List[TagRead] = []
     collections: List[CollectionRead] = []
-    # main 周目（round_number=1）的概要,用于列表页直接显示进度/评分
+    # 当前最新周目的概要；字段名为兼容旧前端保留 main_watching
     main_watching: Optional[WatchingRead] = None
 
 

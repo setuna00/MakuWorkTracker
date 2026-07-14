@@ -52,6 +52,9 @@ def create_new_round(
         label=data.label,
         personal_status=data.personal_status,
     )
+    # 新周目成为当前周目，同时刷新作品更新时间，让当前追看状态及时出现在列表/首页。
+    work.updated_at = datetime.now(timezone.utc)
+    session.add(work)
     session.add(watching)
     session.commit()
     session.refresh(watching)
@@ -79,6 +82,11 @@ def update_watching(
         setattr(watching, k, v)
     watching.updated_at = datetime.now(timezone.utc)
 
+    # 当前周目状态变化也刷新作品时间，保证列表状态和排序及时更新。
+    work = session.get(Work, watching.work_id)
+    if work is not None:
+        work.updated_at = datetime.now(timezone.utc)
+        session.add(work)
     session.add(watching)
     session.commit()
     session.refresh(watching)

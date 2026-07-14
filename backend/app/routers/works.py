@@ -222,24 +222,36 @@ def list_works(
             )
             stmt = stmt.where(Work.id.in_(select(new_filtered_subq.c.wid)))
 
-    # 主周目（round_number=1）别名：personal_status 筛选和 rating 排序共用同一个 join，
-    # 避免对 Watching 表做两次未取别名的 join 导致 SQLite "ambiguous column name" 报错。
-    main_w = aliased(Watching)
-    need_main_join = personal_status is not None or sort == "rating"
-    if need_main_join:
-        stmt = stmt.outerjoin(
-            main_w, (main_w.work_id == Work.id) & (main_w.round_number == 1)
+    # 当前周目统一定义为 round_number 最大的最新周目。
+    # personal_status 筛选和 rating 排序共用同一组 join，避免重复连接 Watching。
+    current_w = aliased(Watching)
+    need_current_join = personal_status is not None or sort == "rating"
+    if need_current_join:
+        latest_rounds = (
+            select(
+                Watching.work_id.label("work_id"),
+                func.max(Watching.round_number).label("round_number"),
+            )
+            .group_by(Watching.work_id)
+            .subquery()
+        )
+        stmt = (
+            stmt
+            .outerjoin(latest_rounds, latest_rounds.c.work_id == Work.id)
+            .outerjoin(
+                current_w,
+                (current_w.work_id == latest_rounds.c.work_id)
+                & (current_w.round_number == latest_rounds.c.round_number),
+            )
         )
 
     if personal_status is not None:
-        # outer join + where 等价于"有主周目且状态匹配"：main_w 为 NULL 的行
-        # （无 round1 周目）personal_status 也为 NULL，自然被过滤，语义与 inner join 一致。
-        stmt = stmt.where(main_w.personal_status == personal_status)
+        stmt = stmt.where(current_w.personal_status == personal_status)
 
     # 排序
     if sort == "rating":
-        # 按 main 周目评分。nullslast 让未评分作品始终沉底（与 last_progress 一致）。
-        col = main_w.rating
+        # 按当前最新周目评分。nullslast 让未评分作品始终沉底。
+        col = current_w.rating
         stmt = stmt.order_by(col.desc().nullslast() if order == "desc"
                              else col.asc().nullslast())
     elif sort == "last_progress":
@@ -316,25 +328,24 @@ def list_works(
         page_works = works
         has_more = False
 
-    # 批量化:一次拿到所有 main watching 的 max(range_end) 和 count(id),避免 N+1。
-    # 没有 main_watching 的 work 不查。
-    main_ids = []
-    main_by_work = {}
+    # 批量计算每部作品当前最新周目的进度，历史周目只保留在详情中。
+    current_ids = []
+    current_by_work = {}
     for w in page_works:
-        main = next((x for x in w.watchings if x.round_number == 1), None)
-        if main is not None:
-            main_ids.append(main.id)
-            main_by_work[w.id] = main
+        current = max(w.watchings, key=lambda x: x.round_number, default=None)
+        if current is not None:
+            current_ids.append(current.id)
+            current_by_work[w.id] = current
 
     progress_agg = {}
-    if main_ids:
+    if current_ids:
         agg_rows = session.exec(
             select(
                 ProgressEntry.watching_id,
                 func.max(ProgressEntry.range_end),
                 func.count(ProgressEntry.id),
             )
-            .where(ProgressEntry.watching_id.in_(main_ids))
+            .where(ProgressEntry.watching_id.in_(current_ids))
             .group_by(ProgressEntry.watching_id)
         ).all()
         for wid, max_end, cnt in agg_rows:
@@ -343,15 +354,15 @@ def list_works(
     items = []
     for w in page_works:
         wr = WorkRead.model_validate(w)
-        main = main_by_work.get(w.id)
-        if main is not None:
-            cp, ec = progress_agg.get(main.id, (None, 0))
+        current = current_by_work.get(w.id)
+        if current is not None:
+            cp, ec = progress_agg.get(current.id, (None, 0))
             wr.main_watching = WatchingRead(
-                id=main.id, work_id=main.work_id, round_number=main.round_number,
-                label=main.label, personal_status=main.personal_status, rating=main.rating,
-                overall_review=main.overall_review,
-                started_at=main.started_at, finished_at=main.finished_at,
-                created_at=main.created_at, updated_at=main.updated_at,
+                id=current.id, work_id=current.work_id, round_number=current.round_number,
+                label=current.label, personal_status=current.personal_status, rating=current.rating,
+                overall_review=current.overall_review,
+                started_at=current.started_at, finished_at=current.finished_at,
+                created_at=current.created_at, updated_at=current.updated_at,
                 current_progress=cp,
                 entries_count=ec,
             )

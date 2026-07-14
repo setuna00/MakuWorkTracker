@@ -11,3 +11,4 @@ build/
 data/
 backend/app/static/
 *.log
+/clear-test-cache.bat

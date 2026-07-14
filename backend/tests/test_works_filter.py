@@ -110,3 +110,85 @@ def test_personal_status_filter_correctness(client, seeded):
     assert resp.status_code == 200
     titles = sorted(it["title"] for it in resp.json()["items"])
     assert titles == ["Alpha", "Beta"]
+
+
+def test_latest_round_drives_status_filter_and_summary(client, session):
+    """当前状态与列表摘要必须来自最大 round_number，而不是固定一周目。"""
+    work = Work(title="Rewatch", type=WorkType.anime, release_status=ReleaseStatus.ongoing)
+    session.add(work)
+    session.flush()
+    session.add(Watching(
+        work_id=work.id, round_number=1,
+        personal_status=PersonalStatus.done, rating=9.0,
+    ))
+    session.add(Watching(
+        work_id=work.id, round_number=2,
+        personal_status=PersonalStatus.watching, rating=7.0,
+    ))
+    session.commit()
+
+    watching_resp = client.get("/api/works", params={
+        "personal_status": "watching", "page": 1, "page_size": 60,
+    })
+    assert watching_resp.status_code == 200
+    watching_items = watching_resp.json()["items"]
+    assert [item["title"] for item in watching_items] == ["Rewatch"]
+    assert watching_items[0]["main_watching"]["round_number"] == 2
+    assert watching_items[0]["main_watching"]["rating"] == 7.0
+
+    done_resp = client.get("/api/works", params={
+        "personal_status": "done", "page": 1, "page_size": 60,
+    })
+    assert done_resp.status_code == 200
+    assert done_resp.json()["items"] == []
+
+
+def test_rating_sort_uses_latest_round(client, session):
+    """旧周目的高分不能覆盖当前周目的评分排序。"""
+    rows = [
+        ("Old High", 10.0, 2.0),
+        ("Current High", 1.0, 8.0),
+    ]
+    for title, old_rating, current_rating in rows:
+        work = Work(title=title, type=WorkType.movie, release_status=ReleaseStatus.finished)
+        session.add(work)
+        session.flush()
+        session.add(Watching(
+            work_id=work.id, round_number=1,
+            personal_status=PersonalStatus.done, rating=old_rating,
+        ))
+        session.add(Watching(
+            work_id=work.id, round_number=2,
+            personal_status=PersonalStatus.done, rating=current_rating,
+        ))
+    session.commit()
+
+    resp = client.get("/api/works", params={
+        "sort": "rating", "order": "desc", "page": 1, "page_size": 60,
+    })
+    assert resp.status_code == 200
+    assert [item["title"] for item in resp.json()["items"]] == ["Current High", "Old High"]
+
+
+def test_starting_new_round_defaults_to_watching_and_reaches_home_query(client, session):
+    """“开启新周目”应立即成为在看状态，并能被首页的 watching 查询取到。"""
+    work = Work(title="Start Again", type=WorkType.tv, release_status=ReleaseStatus.ongoing)
+    session.add(work)
+    session.flush()
+    session.add(Watching(
+        work_id=work.id, round_number=1,
+        personal_status=PersonalStatus.done,
+    ))
+    session.commit()
+
+    created = client.post(f"/api/works/{work.id}/watchings", json={})
+    assert created.status_code == 200, created.text
+    assert created.json()["round_number"] == 2
+    assert created.json()["personal_status"] == "watching"
+
+    home_query = client.get("/api/works", params={
+        "personal_status": "watching", "sort": "last_progress", "order": "desc",
+    })
+    assert home_query.status_code == 200
+    assert [item["title"] for item in home_query.json()] == ["Start Again"]
+    assert home_query.json()[0]["main_watching"]["round_number"] == 2

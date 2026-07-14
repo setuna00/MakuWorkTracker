@@ -110,7 +110,7 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
   const typeMeta = typesMeta?.find(ty => ty.value === work.type)
   const hasRange = typeMeta?.has_range_progress
 
-  const sortedWatchings = [...work.watchings].sort((a, b) => a.round_number - b.round_number)
+  const sortedWatchings = [...work.watchings].sort((a, b) => b.round_number - a.round_number)
   const [watchingId, setWatchingId] = useState(sortedWatchings[0]?.id)
   const watching = sortedWatchings.find(w => w.id === watchingId)
   const currentMax = watching?.current_progress || 0
