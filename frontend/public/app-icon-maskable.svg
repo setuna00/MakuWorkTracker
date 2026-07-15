@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Maku maskable icon</title>
+  <desc id="desc">A geometric M formed by two bookmark ribbons</desc>
+  <rect width="512" height="512" fill="#0B2345"/>
+  <path fill="#FFFFFF" d="M130 134c-12 0-22 10-22 22v224c0 17 20 27 33 16l45-37 48 40c9 8 23 1 23-11V230L146 139c-5-3-10-5-16-5Z"/>
+  <path fill="#2F7FFF" d="M382 134c12 0 22 10 22 22v224c0 17-20 27-33 16l-45-37-48 40c-9 8-23 1-23-11V230l111-91c5-3 10-5 16-5Z"/>
+</svg>

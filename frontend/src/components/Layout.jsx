@@ -47,7 +47,7 @@ export function Layout({ children }) {
       >
         <div className="h-[52px] px-5 flex items-center border-b border-paper-200">
           <Link to="/" className="font-semibold text-base text-brand-600 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-md bg-brand-600 text-white flex items-center justify-center text-xs font-bold">M</span>
+            <img src="/app-icon.svg" alt="" className="w-7 h-7 rounded-md" aria-hidden="true" />
             {t('app.name')}
           </Link>
         </div>
@@ -89,7 +89,10 @@ export function Layout({ children }) {
 
       <main className="flex-1 min-w-0 flex flex-col">
         <div className={`${showMobileGlobalHeader ? 'flex' : 'hidden'} md:flex sticky top-0 z-10 bg-white border-b border-paper-200 h-[52px] px-4 md:px-8 lg:px-10 items-center gap-3`}>
-          <Link to="/" className="md:hidden font-medium text-brand-600">{t('app.name')}</Link>
+          <Link to="/" className="md:hidden font-medium text-brand-600 flex items-center gap-2">
+            <img src="/app-icon.svg" alt="" className="w-7 h-7 rounded-md" aria-hidden="true" />
+            {t('app.name')}
+          </Link>
           <div className="flex-1 flex items-center justify-end">
             <LibrarySearch navigate={navigate} tags={tags} collections={collections} typesMeta={typesMeta} />
           </div>

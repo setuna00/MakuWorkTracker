@@ -18,7 +18,7 @@ from ..db import get_session
 from ..models import (
     Work, Watching, ProgressEntry, Tag, MonthlyReport, WorkTagLink,
 )
-from ..models.enums import PersonalStatus
+from ..models.enums import PersonalStatus, ReleaseStatus, WorkType, TYPES_WITH_RANGE_PROGRESS
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -38,6 +38,151 @@ def _add_month(y: int, m: int):
     if m == 12:
         return y + 1, 1
     return y, m + 1
+
+
+def _previous_month(y: int, m: int):
+    if m == 1:
+        return y - 1, 12
+    return y, m - 1
+
+
+def _longest_streak(days: List[date]) -> int:
+    """Return the longest consecutive run of activity days."""
+    if not days:
+        return 0
+    ordered = sorted(set(days))
+    longest = current = 1
+    for previous, current_day in zip(ordered, ordered[1:]):
+        if current_day == previous + timedelta(days=1):
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 1
+    return longest
+
+
+def _qualified_completions(session: Session, month_start: date, month_end: date):
+    """Return completions proven by a non-backfill entry in the month.
+
+    finished_at confirms that the round completed in the month. Range-based works
+    also need a regular entry that reaches the current total; non-range works need
+    a regular viewing entry. A backfill-only completion is therefore excluded.
+    """
+    candidates = session.exec(
+        select(Work, Watching)
+        .join(Watching, Watching.work_id == Work.id)
+        .where(Watching.finished_at >= month_start)
+        .where(Watching.finished_at < month_end)
+        .order_by(Watching.finished_at.desc(), Watching.round_number.desc())
+    ).all()
+
+    qualified = []
+    for work, watching in candidates:
+        entries = session.exec(
+            select(ProgressEntry)
+            .where(ProgressEntry.watching_id == watching.id)
+            .where(ProgressEntry.date >= month_start)
+            .where(ProgressEntry.date < month_end)
+            .where(ProgressEntry.is_backfill == False)
+            .order_by(ProgressEntry.date.desc(), ProgressEntry.created_at.desc())
+        ).all()
+        if work.type in TYPES_WITH_RANGE_PROGRESS:
+            if work.total_units is None:
+                continue
+            evidence = next(
+                (entry for entry in entries
+                 if entry.range_end is not None and entry.range_end >= work.total_units),
+                None,
+            )
+        else:
+            evidence = entries[0] if entries else None
+        if evidence is not None:
+            qualified.append((work, watching, evidence))
+    return qualified
+def _caught_up_works(session: Session, month_start: date, month_end: date):
+    """Return ongoing works that reached the currently available total this month.
+
+    This follows the same rule used by the home page's "waiting for updates"
+    group: an ongoing range-based work remains in watching status and its regular
+    progress reaches the work's available total. Backfill entries never qualify.
+    """
+    candidates = session.exec(
+        select(Work, Watching)
+        .join(Watching, Watching.work_id == Work.id)
+        .where(Work.release_status == ReleaseStatus.ongoing)
+        .where(Work.total_units.is_not(None))
+        .where(Watching.personal_status == PersonalStatus.watching)
+        .order_by(Work.id, Watching.round_number.desc())
+    ).all()
+
+    caught_up = []
+    seen_work_ids = set()
+    for work, watching in candidates:
+        if work.id in seen_work_ids or work.type not in TYPES_WITH_RANGE_PROGRESS:
+            continue
+        evidence = session.exec(
+            select(ProgressEntry)
+            .where(ProgressEntry.watching_id == watching.id)
+            .where(ProgressEntry.date >= month_start)
+            .where(ProgressEntry.date < month_end)
+            .where(ProgressEntry.is_backfill == False)
+            .where(ProgressEntry.range_end >= work.total_units)
+            .order_by(ProgressEntry.date.desc(), ProgressEntry.created_at.desc())
+        ).first()
+        if evidence is not None:
+            caught_up.append((work, watching, evidence))
+            seen_work_ids.add(work.id)
+    return caught_up
+
+
+def _month_kpis(session: Session, year: int, month: int) -> dict:
+    """Build the headline metrics shared by current and comparison months."""
+    month_start, month_end = _month_bounds(year, month)
+    entries_count = session.exec(
+        select(func.count(ProgressEntry.id))
+        .where(ProgressEntry.date >= month_start)
+        .where(ProgressEntry.date < month_end)
+        .where(ProgressEntry.is_backfill == False)
+    ).one() or 0
+    active_works = session.exec(
+        select(func.count(func.distinct(Watching.work_id)))
+        .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+        .where(ProgressEntry.date >= month_start)
+        .where(ProgressEntry.date < month_end)
+        .where(ProgressEntry.is_backfill == False)
+    ).one() or 0
+    active_days = session.exec(
+        select(func.count(func.distinct(ProgressEntry.date)))
+        .where(ProgressEntry.date >= month_start)
+        .where(ProgressEntry.date < month_end)
+        .where(ProgressEntry.is_backfill == False)
+    ).one() or 0
+
+    first_subq = (
+        select(
+            Watching.work_id.label("wid"),
+            func.min(ProgressEntry.date).label("first_date"),
+        )
+        .join(ProgressEntry, ProgressEntry.watching_id == Watching.id)
+        .where(ProgressEntry.is_backfill == False)
+        .group_by(Watching.work_id)
+        .subquery()
+    )
+    new_works = session.exec(
+        select(func.count(first_subq.c.wid))
+        .where(first_subq.c.first_date >= month_start)
+        .where(first_subq.c.first_date < month_end)
+    ).one() or 0
+    completed_works = len({work.id for work, _, _ in _qualified_completions(
+        session, month_start, month_end
+    )})
+    return {
+        "entries_count": entries_count,
+        "active_days": active_days,
+        "active_works": active_works,
+        "new_works": new_works,
+        "completed_works": completed_works,
+    }
 
 
 def _first_progress_month(session: Session):
@@ -97,12 +242,31 @@ def generate_monthly_report(session: Session, year: int, month: int) -> dict:
         .where(first_subq.c.first_date < month_end)
     ).one() or 0
 
-    # 本月完成作品数(任一 watching.finished_at 在本月)
-    completed_works_count = session.exec(
-        select(func.count(func.distinct(Watching.work_id)))
-        .where(Watching.finished_at >= month_start)
-        .where(Watching.finished_at < month_end)
+    # 本月完成作品必须由该月的非补档记录证明。
+    qualified_completions = _qualified_completions(session, month_start, month_end)
+    completed_works_count = len({work.id for work, _, _ in qualified_completions})
+    active_days_count = session.exec(
+        select(func.count(func.distinct(ProgressEntry.date)))
+        .where(ProgressEntry.date >= month_start)
+        .where(ProgressEntry.date < month_end)
+        .where(ProgressEntry.is_backfill == False)
     ).one() or 0
+
+    previous_year, previous_month = _previous_month(year, month)
+    current_kpis = {
+        "entries_count": entries_count,
+        "active_days": active_days_count,
+        "active_works": active_works_count,
+        "new_works": new_works_count,
+        "completed_works": completed_works_count,
+    }
+    previous_kpis = _month_kpis(session, previous_year, previous_month)
+    comparison = {
+        "year": previous_year, "month": previous_month,
+        "has_activity": previous_kpis["entries_count"] > 0,
+        "previous": previous_kpis,
+        "delta": {key: current_kpis[key] - previous_kpis[key] for key in current_kpis},
+    }
 
     # ---- B. 类型分布(本月活跃作品按类型分桶) ----
     active_works_with_type = session.exec(
@@ -149,7 +313,7 @@ def generate_monthly_report(session: Session, year: int, month: int) -> dict:
             .subquery()
         )
         rated_rows = session.exec(
-            select(Work.id, Work.title, Watching.rating)
+            select(Work.id, Work.title, Work.cover_path, Work.cover_thumb_path, Watching.rating)
             .join(latest_rounds, latest_rounds.c.work_id == Work.id)
             .join(
                 Watching,
@@ -160,40 +324,179 @@ def generate_monthly_report(session: Session, year: int, month: int) -> dict:
             .where(Watching.rating.is_not(None))
         ).all()
         if rated_rows:
-            ratings = [r for _, _, r in rated_rows]
+            ratings = [row[4] for row in rated_rows]
             avg = round(sum(ratings) / len(ratings), 1)
-            highest = max(rated_rows, key=lambda x: x[2])
+            highest = max(rated_rows, key=lambda row: row[4])
             rating_insight = {
                 "rated_count": len(rated_rows),
                 "average": avg,
                 "highest": {
                     "work_id": highest[0],
                     "title": highest[1],
-                    "rating": highest[2],
+                    "cover_path": highest[2],
+                    "cover_thumb_path": highest[3],
+                    "rating": highest[4],
                 },
             }
 
     # ---- E. 月历热力图(每天的非补录条目数) ----
     daily_counts = session.exec(
-        select(ProgressEntry.date, func.count(ProgressEntry.id))
+        select(
+            ProgressEntry.date,
+            func.count(ProgressEntry.id),
+            func.sum(ProgressEntry.consumed_count),
+            func.count(func.distinct(Watching.work_id)),
+        )
+        .join(Watching, ProgressEntry.watching_id == Watching.id)
         .where(ProgressEntry.date >= month_start)
         .where(ProgressEntry.date < month_end)
         .where(ProgressEntry.is_backfill == False)
         .group_by(ProgressEntry.date)
     ).all()
-    heatmap = {d.isoformat(): c for d, c in daily_counts}
+    daily_activity = {
+        d.isoformat(): {
+            "entries": entry_count,
+            "consumed": consumed or 0,
+            "works": work_count,
+        }
+        for d, entry_count, consumed, work_count in daily_counts
+    }
+    heatmap = {day: values["entries"] for day, values in daily_activity.items()}
+    activity_dates = [date.fromisoformat(day) for day in daily_activity]
+    busiest_day = None
+    if daily_activity:
+        busiest_date, busiest_values = max(
+            daily_activity.items(),
+            key=lambda item: (item[1]["entries"], item[1]["consumed"], item[0]),
+        )
+        busiest_day = {"date": busiest_date, **busiest_values}
+    activity_insight = {
+        "active_days": active_days_count,
+        "longest_streak": _longest_streak(activity_dates),
+        "busiest_day": busiest_day,
+    }
+
+    # ---- E2. 本月实际推进量(不同单位分开统计) ----
+    consumption_rows = session.exec(
+        select(
+            Work.type,
+            Work.unit_label,
+            func.sum(ProgressEntry.consumed_count),
+        )
+        .join(Watching, ProgressEntry.watching_id == Watching.id)
+        .join(Work, Watching.work_id == Work.id)
+        .where(ProgressEntry.date >= month_start)
+        .where(ProgressEntry.date < month_end)
+        .where(ProgressEntry.is_backfill == False)
+        .group_by(Work.type, Work.unit_label)
+    ).all()
+    type_order = {
+        WorkType.anime: 0,
+        WorkType.tv: 1,
+        WorkType.movie: 2,
+        WorkType.manga: 3,
+        WorkType.novel: 4,
+        WorkType.other: 5,
+    }
+    consumption = [
+        {
+            "type": work_type.value,
+            "unit_label": unit_label,
+            "count": consumed or 0,
+        }
+        for work_type, unit_label, consumed in sorted(
+            consumption_rows,
+            key=lambda row: (type_order.get(row[0], 99), row[1] or ""),
+        )
+    ]
+
+    # ---- E3. 按推进量排序的本月作品 ----
+    work_rows = session.exec(
+        select(
+            Work.id,
+            Work.title,
+            Work.cover_thumb_path,
+            Work.type,
+            Work.unit_label,
+            func.sum(ProgressEntry.consumed_count),
+            func.count(ProgressEntry.id),
+            func.count(func.distinct(ProgressEntry.date)),
+            func.min(ProgressEntry.range_start),
+            func.max(ProgressEntry.range_end),
+        )
+        .join(Watching, ProgressEntry.watching_id == Watching.id)
+        .join(Work, Watching.work_id == Work.id)
+        .where(ProgressEntry.date >= month_start)
+        .where(ProgressEntry.date < month_end)
+        .where(ProgressEntry.is_backfill == False)
+        .group_by(Work.id, Work.title, Work.cover_thumb_path, Work.type, Work.unit_label)
+        .order_by(
+            func.count(func.distinct(ProgressEntry.date)).desc(),
+            func.count(ProgressEntry.id).desc(),
+            func.sum(ProgressEntry.consumed_count).desc(),
+        )
+    ).all()
+    latest_status = {}
+    if active_work_ids:
+        watching_rows = session.exec(
+            select(Watching)
+            .where(Watching.work_id.in_(active_work_ids))
+            .order_by(Watching.work_id, Watching.round_number.desc())
+        ).all()
+        for watching in watching_rows:
+            latest_status.setdefault(watching.work_id, watching.personal_status.value)
+    work_ranking = [
+        {
+            "work_id": wid,
+            "title": title,
+            "cover_thumb_path": cover,
+            "type": work_type.value,
+            "unit_label": unit_label,
+            "consumed_count": consumed or 0,
+            "entries_count": entry_count,
+            "active_days": active_days,
+            "progress_start": progress_start,
+            "progress_end": progress_end,
+            "status": latest_status.get(wid),
+        }
+        for (
+            wid, title, cover, work_type, unit_label, consumed, entry_count,
+            active_days, progress_start, progress_end,
+        ) in work_rows
+    ]
 
     # ---- F. 完成的作品列表(本月 finished 的 watching 关联的 work) ----
-    completed_rows = session.exec(
-        select(Work.id, Work.title, Work.cover_thumb_path, Watching.rating)
-        .join(Watching, Watching.work_id == Work.id)
-        .where(Watching.finished_at >= month_start)
-        .where(Watching.finished_at < month_end)
-        .order_by(Watching.finished_at.desc())
-    ).all()
     completed_list = [
-        {"work_id": wid, "title": title, "cover_thumb_path": cover, "rating": rating}
-        for wid, title, cover, rating in completed_rows
+        {
+            "work_id": work.id,
+            "title": work.title,
+            "cover_thumb_path": work.cover_thumb_path,
+            "type": work.type.value,
+            "rating": watching.rating,
+            "round_number": watching.round_number,
+            "round_label": watching.label,
+            "completed_at": evidence.date.isoformat(),
+            "overall_review": watching.overall_review,
+        }
+        for work, watching, evidence in qualified_completions
+    ]
+    caught_up_list = [
+        {
+            "work_id": work.id,
+            "title": work.title,
+            "cover_thumb_path": work.cover_thumb_path,
+            "type": work.type.value,
+            "unit_label": work.unit_label,
+            "rating": watching.rating,
+            "round_number": watching.round_number,
+            "round_label": watching.label,
+            "caught_up_at": evidence.date.isoformat(),
+            "progress_end": evidence.range_end,
+            "overall_review": watching.overall_review,
+        }
+        for work, watching, evidence in _caught_up_works(
+            session, month_start, month_end
+        )
     ]
 
     # ---- G. 文字总结(模板化,前端可选择渲染或自行生成) ----
@@ -213,15 +516,22 @@ def generate_monthly_report(session: Session, year: int, month: int) -> dict:
         "month": month,
         "stats": {
             "entries_count": entries_count,
+            "active_days": active_days_count,
             "active_works": active_works_count,
             "new_works": new_works_count,
             "completed_works": completed_works_count,
         },
+        "comparison": comparison,
+        "activity_insight": activity_insight,
+        "consumption": consumption,
+        "work_ranking": work_ranking,
         "type_distribution": type_distribution,
         "top_tags": top_tags,
         "rating_insight": rating_insight,
         "heatmap": heatmap,
+        "daily_activity": daily_activity,
         "completed_list": completed_list,
+        "caught_up_list": caught_up_list,
         "summary_text": summary_text,
     }
 
