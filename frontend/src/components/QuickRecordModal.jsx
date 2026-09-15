@@ -62,7 +62,8 @@ export function QuickRecordModal({ work, watching, onClose, typesMeta }) {
   const roundLabel = targetWatching.label || t('workDetail.round', { n: targetWatching.round_number })
 
   return (
-    <Modal open={true} onClose={onClose} title={t('quickRecord.modal.title', { title: work.title })}>
+    <Modal open={true} onClose={onClose} closeOnBackdrop={false}
+           title={t('quickRecord.modal.title', { title: work.title })}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {targetWatching.round_number > 1 && (
           <div className="text-xs text-brand-700 bg-brand-50 border border-brand-200 px-3 py-2 rounded-md">

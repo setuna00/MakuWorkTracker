@@ -831,6 +831,8 @@ function ReportsSection() {
     mutationFn: () => api.generateAllHistory(),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['reports', 'list'] })
+      // 所有快照都被重算了，已缓存的报告内容也要作废
+      queryClient.invalidateQueries({ queryKey: ['monthlyReport'] })
       const n = res?.generated?.length ?? res?.count ?? 0
       setStatusMsg(t('settings.reports.generatedMsg', { n }))
       setTimeout(() => setStatusMsg(''), 4000)

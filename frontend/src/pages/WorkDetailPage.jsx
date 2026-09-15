@@ -1041,7 +1041,8 @@ function EditWorkMetaModal({ work, typeMeta, isMovie, onClose }) {
 
   if (pendingFile) {
     return (
-      <Modal open={true} onClose={() => setPendingFile(null)} title={t('newWork.cropper.title')} size="md">
+      <Modal open={true} onClose={() => setPendingFile(null)} title={t('newWork.cropper.title')}
+             size="xl" closeOnBackdrop={false}>
         <CoverCropper
           file={pendingFile}
           onCancel={() => setPendingFile(null)}

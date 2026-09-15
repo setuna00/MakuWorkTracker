@@ -1,10 +1,11 @@
 """月度/年度报告。
 
 设计要点:
-- 报告内容按月生成快照(JSON),写入 MonthlyReport 表;一旦生成,后续数据变更不影响历史报告
+- 报告内容按月生成快照(JSON),写入 MonthlyReport 表;数据变更后快照不会自动更新,
+  由用户手动重新生成单月(regenerate)或全部历史(generate-all-history,覆盖所有快照)
 - 所有统计严格过滤 is_backfill==False —— 补录绝不进报告
 - 不弹"本月还没结束"的报告:首次打开 app 时弹的是"上个月"的报告
-- 缺失某个月直接生成:补历史 / 1 号自动生成 / 用户手动 regenerate
+- 缺失某个月直接生成:1 号自动生成 / 打开时按需生成 / 重算全部历史时一并补上
 """
 import json
 from datetime import date, datetime, timedelta
@@ -603,35 +604,31 @@ def regenerate_report(
 
 @router.post("/monthly/generate-all-history")
 def generate_all_history(session: Session = Depends(get_session)):
-    """补生从最早 progress entry 那一月到上个月的所有报告。
+    """按当前数据重算所有历史报告,已有快照一律覆盖。
 
-    已存在的不重新生成(idempotent);只填空白月。返回新生成的月份列表。
-    用户在设置里手动触发,首次启用时弹个提示自动调一次。
+    范围:最早 progress entry 那一月到上个月,再加上已存在快照的月份(比如打开过的本月)。
+    事后补记了旧月份的记录(例如出门几天,回来一次性补上),点一次就能进入对应月份的报告。
+    返回重算的月份列表。
     """
+    months = set()
     earliest = _first_progress_month(session)
-    if earliest is None:
-        return {"generated": [], "message": "no progress yet"}
-
-    today = date.today()
-    # 终点:上一月(不含本月,因为本月没结束不出报告)
-    end_y, end_m = today.year, today.month
-    end_y, end_m = (end_y, end_m - 1) if end_m > 1 else (end_y - 1, 12)
-
-    # 现有的(避免重复生成)
-    existing = {
-        (y, m) for y, m in session.exec(
-            select(MonthlyReport.year, MonthlyReport.month)
-        ).all()
-    }
+    if earliest is not None:
+        today = date.today()
+        # 终点:上一月(不含本月,因为本月没结束不出报告)
+        end = _previous_month(today.year, today.month)
+        y, m = earliest
+        while (y, m) <= end:
+            months.add((y, m))
+            y, m = _add_month(y, m)
+    months.update(
+        (y, m) for y, m in session.exec(select(MonthlyReport.year, MonthlyReport.month)).all()
+    )
 
     generated = []
-    y, m = earliest
-    while (y, m) <= (end_y, end_m):
-        if (y, m) not in existing:
-            data = generate_monthly_report(session, y, m)
-            _save_report(session, y, m, data, overwrite=False)
-            generated.append({"year": y, "month": m})
-        y, m = _add_month(y, m)
+    for y, m in sorted(months):
+        data = generate_monthly_report(session, y, m)
+        _save_report(session, y, m, data, overwrite=True)
+        generated.append({"year": y, "month": m})
 
     return {"generated": generated, "count": len(generated)}
 

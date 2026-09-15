@@ -38,7 +38,7 @@ export function EditEntryModal({ entry, hasRange, unitLabel = '集', onClose }) 
   const toLabel = locale === 'en' ? '–' : '到'
 
   return (
-    <Modal open={true} onClose={onClose} title={t('editEntry.title')}>
+    <Modal open={true} onClose={onClose} closeOnBackdrop={false} title={t('editEntry.title')}>
       <div className="space-y-4">
         <Field label={t('quickRecord.date')}>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />

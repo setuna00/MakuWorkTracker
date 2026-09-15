@@ -1,7 +1,14 @@
+import { useRef } from 'react'
 import { X } from 'lucide-react'
 import { useT } from '../lib/i18n'
 
-export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
+/**
+ * closeOnBackdrop=false：点遮罩不关闭，只能用弹窗里的按钮关，适合正在填写内容的表单。
+ * 即使允许点遮罩关闭，也要求按下和松开都在遮罩上 —— 在输入框里拖选文字、拖动裁剪图片时
+ * 松手落在弹窗外，不算"点外面"。
+ */
+export function Modal({ open, onClose, title, children, footer, size = 'md', closeOnBackdrop = true }) {
+  const pressedOnBackdrop = useRef(false)
   if (!open) return null
 
   const sizes = {
@@ -13,7 +20,11 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/40 backdrop-blur-sm"
-         onClick={onClose}>
+         onMouseDown={(e) => { pressedOnBackdrop.current = e.target === e.currentTarget }}
+         onClick={(e) => {
+           if (closeOnBackdrop && pressedOnBackdrop.current && e.target === e.currentTarget) onClose()
+           pressedOnBackdrop.current = false
+         }}>
       <div className={`bg-white rounded-xl w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-paper-200`}
            onClick={(e) => e.stopPropagation()}>
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-paper-200">

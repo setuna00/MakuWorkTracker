@@ -2,7 +2,7 @@ from datetime import date
 
 from app.models import Work, Watching, ProgressEntry
 from app.models.enums import WorkType, ReleaseStatus, PersonalStatus
-from app.routers.reports import generate_monthly_report
+from app.routers.reports import generate_monthly_report, _previous_month
 
 
 def _entry(
@@ -161,3 +161,36 @@ def test_monthly_report_includes_caught_up_works_and_type_order(session):
     assert report["consumption"][1]["count"] > report["consumption"][0]["count"]
     assert report["rating_insight"]["rated_count"] == 2
     assert report["rating_insight"]["average"] == 9.0
+
+
+def test_generate_all_history_recalculates_existing_snapshots(client, session):
+    today = date.today()
+    year, month = _previous_month(*_previous_month(today.year, today.month))
+    work = Work(
+        title="Trip Catch Up",
+        type=WorkType.manga,
+        release_status=ReleaseStatus.ongoing,
+    )
+    session.add(work)
+    session.flush()
+    watching = Watching(work_id=work.id, personal_status=PersonalStatus.watching)
+    session.add(watching)
+    session.flush()
+    session.add(_entry(watching.id, date(year, month, 2), 1, 1))
+    session.commit()
+
+    params = {"year": year, "month": month}
+    first = client.post("/api/reports/monthly/generate-all-history").json()
+    assert params in first["generated"]
+    report = client.get("/api/reports/monthly", params=params).json()
+    assert report["stats"]["entries_count"] == 1
+
+    # 事后补记同一个月的记录,再点一次应覆盖旧快照
+    session.add(_entry(watching.id, date(year, month, 10), 2, 5))
+    session.commit()
+
+    second = client.post("/api/reports/monthly/generate-all-history").json()
+    assert second["count"] == first["count"]
+    report = client.get("/api/reports/monthly", params=params).json()
+    assert report["stats"]["entries_count"] == 2
+    assert report["stats"]["active_days"] == 2

@@ -431,7 +431,8 @@ export default function NewWorkPage() {
       )}
 
       {pendingFile && (
-        <Modal open={true} onClose={() => setPendingFile(null)} title={t('newWork.cropper.title')} size="md">
+        <Modal open={true} onClose={() => setPendingFile(null)} title={t('newWork.cropper.title')}
+               size="xl" closeOnBackdrop={false}>
           <CoverCropper
             file={pendingFile}
             onCancel={() => setPendingFile(null)}
