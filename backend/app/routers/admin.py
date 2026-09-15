@@ -67,7 +67,7 @@ def export_json(session: Session = Depends(get_session)):
 
     data = {
         "exported_at": datetime.utcnow().isoformat(),
-        "version": "1.5.0",
+        "version": settings.app_version,
         "works": [],
         "watchings": [_model_to_dict(w) for w in watchings],
         "progress_entries": [_model_to_dict(e) for e in entries],
@@ -174,7 +174,7 @@ def admin_info(session: Session = Depends(get_session)):
     entries_count = session.exec(select(ProgressEntry)).all()
     db_size = settings.db_path.stat().st_size if settings.db_path.exists() else 0
     return {
-        "version": "1.5.0",
+        "version": settings.app_version,
         "works_count": len(works_count),
         "entries_count": len(entries_count),
         "db_size_bytes": db_size,
@@ -185,15 +185,20 @@ def admin_info(session: Session = Depends(get_session)):
 def _is_legacy_payload(payload: dict) -> bool:
     """判断 JSON 备份是不是 v1.3.0 之前的老格式。
 
-    判定：缺 version 或 version 字符串小于 "1.3.0"，或者 tag_groups 字段缺失。
-    用字符串比较即可（语义化 X.Y.Z 与字典序在同长度下一致）。
+    判定：缺 version、tag_groups 字段缺失，或者 version 小于 1.3.0。
+    version 按数字逐段比较（字典序会把 "1.10.0" 误判为小于 "1.3.0"）；
+    解析不了的版本号（本地开发导出的 "dev"）以 tag_groups 是否存在为准。
     """
     version = payload.get("version", "")
     if not version:
         return True
     if "tag_groups" not in payload:
         return True
-    return version < "1.3.0"
+    try:
+        parts = tuple(int(x) for x in version.lstrip("v").split(".")[:3])
+    except ValueError:
+        return False
+    return parts < (1, 3, 0)
 
 
 def _create_default_tag_group(session: Session) -> int:

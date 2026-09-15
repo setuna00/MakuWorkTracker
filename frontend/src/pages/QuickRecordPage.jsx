@@ -20,9 +20,10 @@ export default function QuickRecordPage() {
     staleTime: 60 * 60 * 1000,
   })
 
+  // 最近记录过进度的作品排在前面，方便接着记
   const { data: results = [] } = useQuery({
-    queryKey: ['works', { q: query }],
-    queryFn: () => api.listWorks({ q: query }),
+    queryKey: ['works', { q: query, sort: 'last_progress' }],
+    queryFn: () => api.listWorks({ q: query, sort: 'last_progress' }),
   })
 
   const { data: selectedWork } = useQuery({

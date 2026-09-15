@@ -48,10 +48,16 @@ Maku 是一个可以部署在自己电脑或 NAS 上的个人作品追踪应用�
 
 ## 快速开始
 
-在项目根目录运行：
+在 `docker-compose.yml` 所在目录运行（会拉取预构建镜像，支持 amd64 / arm64）：
 
 ```bash
-docker compose up -d --build
+docker compose up -d
+```
+
+`volumes` 里的数据目录默认是 QNAP 路径，在其他机器上请改成实际路径。想从源码构建的话：
+
+```bash
+docker compose -f docker-compose.build.yml up -d --build
 ```
 
 然后打开：
@@ -75,40 +81,73 @@ docker compose down
 
 ## 部署到 QNAP NAS
 
-### 1. 准备数据目录
+NAS 上不需要源码，只需要 `docker-compose.yml` 和更新脚本 `update.sh` 两个文件。
 
-在 NAS 上创建持久化数据目录：
-
-```bash
-mkdir -p /share/Container/works-tracker/data
-```
-
-你也可以使用其他路径。如果改了路径，请同步修改 `docker-compose.yml` 里的 `volumes`。
-
-### 2. 上传项目
-
-把项目目录上传到 NAS，例如：
-
-```text
-/share/Container/works-tracker/app/works-tracker
-```
-
-### 3. 构建并启动
+### 1. 准备目录和文件
 
 SSH 进入 NAS：
 
 ```bash
-cd /share/Container/works-tracker/app/works-tracker
-docker compose up -d --build
+mkdir -p /share/Container/works-tracker/data
+cd /share/Container/works-tracker
+curl -fsSLO https://raw.githubusercontent.com/setuna00/MakuWorkTracker/main/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/setuna00/MakuWorkTracker/main/deploy/update.sh
+chmod +x update.sh
 ```
 
-### 4. 访问应用
+你也可以使用其他数据目录。如果改了路径，请同步修改 `docker-compose.yml` 里的 `volumes`。
+
+### 2. 启动
+
+```bash
+./update.sh
+```
+
+第一次运行会拉取镜像并启动容器。然后访问：
 
 ```text
 http://<NAS_IP>:8765
 ```
 
 确保电脑或手机和 NAS 在同一局域网内。
+
+### 3. 更新
+
+随时运行 `./update.sh` 即可更新，它会：
+
+1. 拉取镜像，没有新版本就直接退出；
+2. 有新版本时先备份数据库（写到 `data/backups/`），备份失败就取消更新；
+3. 重建容器、做健康检查，并清理替换下来的旧镜像。
+
+想每天自动检查更新，可以加进 QNAP 的 crontab（下面的例子是每天 04:30）：
+
+```bash
+echo "30 4 * * * /share/Container/works-tracker/update.sh >> /share/Container/works-tracker/update.log 2>&1" >> /etc/config/crontab
+crontab /etc/config/crontab && /etc/init.d/crond.sh restart
+```
+
+建议先手动运行一次 `./update.sh` 确认正常，再加定时任务。
+
+### 4. 固定版本 / 回滚
+
+把 `docker-compose.yml` 里的 `latest` 改成具体版本号，再运行 `./update.sh`：
+
+```yaml
+image: ghcr.io/setuna00/makuworktracker:1.7.0
+```
+
+退回旧版本时，如果新版本已经改过数据库结构，请按下文「从备份恢复」恢复更新前的备份。
+
+### 从源码部署方式迁移
+
+如果之前是把项目复制到 NAS 上用 `docker compose up -d --build` 部署的：先在 **设置 → 数据** 里手动备份一次，然后停掉旧容器：
+
+```bash
+cd /share/Container/works-tracker/app/works-tracker
+docker compose down
+```
+
+再按上面的步骤 1、2 操作。数据目录不变，确认新版本正常后可以删掉旧的项目目录。
 
 ---
 
@@ -205,10 +244,29 @@ Vite 开发服务器会把 API 请求代理到后端。
 
 ---
 
+## 发布新版本
+
+镜像由 GitHub Actions 构建（`.github/workflows/ci.yml`）：
+
+- push 到 `main` 或提 PR：只跑后端测试和前端构建。
+- push `v*` 版本 tag：测试通过后构建 `linux/amd64` + `linux/arm64` 镜像，发布到 `ghcr.io/setuna00/makuworktracker`，标签为 `1.7.0`、`1.7` 和 `latest`。
+
+```bash
+git tag v1.7.0
+git push origin v1.7.0
+```
+
+应用里显示的版本号（设置 → 关于）就来自这个 tag，不需要手动改代码。
+
+> 第一次发布后，GHCR 上的包默认是私有的：在 GitHub 个人主页 → Packages → makuworktracker → Package settings 里把可见性改为 Public，否则拉取镜像前需要先 `docker login ghcr.io`。
+
+---
+
 ## 项目结构
 
 ```text
 works-tracker/
+├── .github/workflows/ci.yml   # 测试 + 发布镜像
 ├── backend/
 │   ├── app/
 │   │   ├── main.py
@@ -218,6 +276,7 @@ works-tracker/
 │   │   ├── models/
 │   │   ├── routers/
 │   │   └── utils/
+│   ├── tests/
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -227,8 +286,10 @@ works-tracker/
 │   │   ├── components/
 │   │   └── pages/
 │   └── package.json
+├── deploy/update.sh           # NAS 更新脚本
 ├── Dockerfile
-├── docker-compose.yml
+├── docker-compose.yml         # 使用预构建镜像
+├── docker-compose.build.yml   # 从源码构建
 ├── README.md
 ├── README.en.md
 └── LICENSE

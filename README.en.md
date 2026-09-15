@@ -48,10 +48,16 @@ It is designed around a simple idea: **local-first, private by default, and full
 
 ## Quick start
 
-Run this in the project root:
+Run this next to `docker-compose.yml` (pulls the prebuilt image, amd64 / arm64):
 
 ```bash
-docker compose up -d --build
+docker compose up -d
+```
+
+The data directory in `volumes` defaults to a QNAP path; change it on other machines. To build from source instead:
+
+```bash
+docker compose -f docker-compose.build.yml up -d --build
 ```
 
 Then open:
@@ -75,40 +81,73 @@ docker compose down
 
 ## Deploy to QNAP NAS
 
-### 1. Prepare a data directory
+The NAS does not need the source code — only `docker-compose.yml` and the update script `update.sh`.
 
-Create a persistent data directory on the NAS:
+### 1. Prepare the directory and files
+
+SSH into the NAS:
 
 ```bash
 mkdir -p /share/Container/works-tracker/data
+cd /share/Container/works-tracker
+curl -fsSLO https://raw.githubusercontent.com/setuna00/MakuWorkTracker/main/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/setuna00/MakuWorkTracker/main/deploy/update.sh
+chmod +x update.sh
 ```
 
-You can use another path, but remember to update the `volumes` section in `docker-compose.yml`.
+You can use another data path, but remember to update the `volumes` section in `docker-compose.yml`.
 
-### 2. Upload the project
-
-Upload the project folder to the NAS, for example:
-
-```text
-/share/Container/works-tracker/app/works-tracker
-```
-
-### 3. Build and start
-
-SSH into the NAS and run:
+### 2. Start
 
 ```bash
-cd /share/Container/works-tracker/app/works-tracker
-docker compose up -d --build
+./update.sh
 ```
 
-### 4. Visit the app
+The first run pulls the image and starts the container. Then visit:
 
 ```text
 http://<NAS_IP>:8765
 ```
 
 Make sure your phone or computer is on the same local network as the NAS.
+
+### 3. Update
+
+Run `./update.sh` any time. It will:
+
+1. pull the image and exit if there is no new version;
+2. back up the database (into `data/backups/`) before updating, and abort if the backup fails;
+3. recreate the container, run a health check, and remove the replaced image.
+
+To check for updates daily, add it to the QNAP crontab (04:30 in this example):
+
+```bash
+echo "30 4 * * * /share/Container/works-tracker/update.sh >> /share/Container/works-tracker/update.log 2>&1" >> /etc/config/crontab
+crontab /etc/config/crontab && /etc/init.d/crond.sh restart
+```
+
+Run `./update.sh` manually once before adding the scheduled job.
+
+### 4. Pin a version / roll back
+
+Replace `latest` in `docker-compose.yml` with a specific version, then run `./update.sh`:
+
+```yaml
+image: ghcr.io/setuna00/makuworktracker:1.7.0
+```
+
+When rolling back, if the newer version already changed the database schema, restore the pre-update backup as described in "Restore from backup" below.
+
+### Migrating from a source-based deployment
+
+If you previously copied the project to the NAS and ran `docker compose up -d --build`: create a manual backup in **Settings → Data**, then stop the old container:
+
+```bash
+cd /share/Container/works-tracker/app/works-tracker
+docker compose down
+```
+
+Then follow steps 1 and 2 above. The data directory stays the same; once the new version works you can delete the old project folder.
 
 ---
 
@@ -205,10 +244,29 @@ The Vite dev server proxies API requests to the backend.
 
 ---
 
+## Releasing
+
+Images are built by GitHub Actions (`.github/workflows/ci.yml`):
+
+- Push to `main` or open a PR: runs backend tests and the frontend build only.
+- Push a `v*` version tag: after tests pass, builds `linux/amd64` + `linux/arm64` images and publishes them to `ghcr.io/setuna00/makuworktracker` as `1.7.0`, `1.7`, and `latest`.
+
+```bash
+git tag v1.7.0
+git push origin v1.7.0
+```
+
+The version shown in the app (Settings → About) comes from this tag, so there is no version string to edit in code.
+
+> After the first release, the GHCR package is private by default: go to your GitHub profile → Packages → makuworktracker → Package settings and change visibility to Public, otherwise pulling requires `docker login ghcr.io`.
+
+---
+
 ## Project structure
 
 ```text
 works-tracker/
+├── .github/workflows/ci.yml   # tests + image publishing
 ├── backend/
 │   ├── app/
 │   │   ├── main.py
@@ -218,6 +276,7 @@ works-tracker/
 │   │   ├── models/
 │   │   ├── routers/
 │   │   └── utils/
+│   ├── tests/
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -227,8 +286,10 @@ works-tracker/
 │   │   ├── components/
 │   │   └── pages/
 │   └── package.json
+├── deploy/update.sh           # NAS update script
 ├── Dockerfile
-├── docker-compose.yml
+├── docker-compose.yml         # prebuilt image
+├── docker-compose.build.yml   # build from source
 ├── README.md
 ├── README.en.md
 └── LICENSE

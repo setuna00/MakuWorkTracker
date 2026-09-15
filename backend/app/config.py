@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    # 应用版本：发布镜像时由 Dockerfile 从 git tag 注入 (WT_APP_VERSION)，本地运行为 dev
+    app_version: str = "dev"
+
     # 数据目录（容器内挂载点）
     data_dir: Path = Path("/app/data")
 
