@@ -27,7 +27,8 @@ jobs:
         working-directory: backend
         run: |
           pip install -r requirements.txt pytest httpx
-          pytest -q
+          # 用 python -m 运行，才会把 backend/ 加进 sys.path，conftest 里的 import app 才能成功
+          python -m pytest -q
 
       - uses: actions/setup-node@v7
         with:
