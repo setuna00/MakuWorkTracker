@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Search, ChevronLeft } from 'lucide-react'
 import { api, coverUrl, localToday } from '../lib/api'
-import { useT, translateType, translateUnit, useLocaleStore } from '../lib/i18n'
+import { useT, translateUnit, useLocaleStore } from '../lib/i18n'
 import { Button } from '../components/Modal'
+import { TypeBadge } from '../components/TypeBadge'
 
 export default function QuickRecordPage() {
   const t = useT()
@@ -92,9 +93,9 @@ export default function QuickRecordPage() {
                 <div className="text-sm font-medium leading-tight group-hover:text-brand-700 transition-colors line-clamp-2">
                   {w.title}
                 </div>
-                <div className="text-[11px] text-ink-500 mt-1">
-                  {translateType(w.type, t)}
-                  {w.original_title && <span className="ml-1.5 text-ink-400">· {w.original_title}</span>}
+                <div className="text-[11px] mt-1 flex items-center gap-1.5 min-w-0">
+                  <TypeBadge type={w.type} size="sm" />
+                  {w.original_title && <span className="text-ink-400 truncate">{w.original_title}</span>}
                 </div>
               </div>
             </button>
@@ -174,7 +175,7 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
           )}
         </div>
         <div>
-          <div className="text-[11px] text-brand-600 font-medium uppercase mb-1">{translateType(work.type, t)}</div>
+          <TypeBadge type={work.type} className="mb-1.5" />
           <h1 className="text-lg font-semibold leading-tight">{work.title}</h1>
           {work.original_title && (
             <div className="text-sm text-ink-500 mt-0.5">{work.original_title}</div>

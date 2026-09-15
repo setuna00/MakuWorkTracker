@@ -333,6 +333,11 @@ def type_counts(
                 )
             )
 
+    # 与 list_works 一致:关掉"显示弃坑作品"后不计入弃坑作品
+    from .preferences import get_preference, dropped_work_ids
+    if not get_preference(session, "show_dropped"):
+        stmt = stmt.where(Work.id.not_in(dropped_work_ids()))
+
     rows = session.exec(stmt).all()
 
     counts = {t.value: 0 for t in WorkType}

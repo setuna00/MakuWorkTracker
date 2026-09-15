@@ -7,9 +7,10 @@ import { api, coverUrl } from '../lib/api'
 import { relativeDate, formatRange } from '../lib/format'
 import {
   useT,
-  translateType, translateStatus, translateRelease,
+  translateStatus, translateRelease,
   translateUnit, translateCreatorLabel,
 } from '../lib/i18n'
+import { TypeBadge } from '../components/TypeBadge'
 import { Button, Modal, ConfirmDialog } from '../components/Modal'
 import { QuickRecordModal } from '../components/QuickRecordModal'
 import { StarRating } from '../components/StarRating'
@@ -136,9 +137,13 @@ export default function WorkDetailPage() {
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] text-brand-600 font-medium uppercase tracking-wider mb-2">
-              {translateType(work.type, t)}
-              {!isMovie && ` · ${translateRelease(work.release_status, t)}`}
+            <div className="flex items-center gap-2 mb-2">
+              <TypeBadge type={work.type} />
+              {!isMovie && (
+                <span className="text-[11px] text-ink-500 font-medium uppercase tracking-wider">
+                  {translateRelease(work.release_status, t)}
+                </span>
+              )}
             </div>
             <h1 className="text-2xl font-semibold leading-tight mb-1.5 text-ink-900">{work.title}</h1>
             {work.original_title && (
@@ -421,9 +426,13 @@ function MobileWorkDetail({
 
           {/* 元信息 */}
           <div className="flex-1 min-w-0 flex flex-col">
-            <div className="text-[11px] text-brand-600 font-medium uppercase tracking-wider">
-              {translateType(work.type, t)}
-              {!isMovie && ` · ${translateRelease(work.release_status, t)}`}
+            <div className="flex items-center gap-2">
+              <TypeBadge type={work.type} />
+              {!isMovie && (
+                <span className="text-[11px] text-ink-500 font-medium uppercase tracking-wider">
+                  {translateRelease(work.release_status, t)}
+                </span>
+              )}
             </div>
             <h1
               ref={heroTitleRef}

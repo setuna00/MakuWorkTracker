@@ -135,6 +135,11 @@ export const api = {
     return request(`/api/stats/type-counts${q ? '?' + q : ''}`)
   },
 
+  // ---- preferences ----
+  getPreferences: () => request('/api/preferences'),
+  updatePreferences: (data) =>
+    request('/api/preferences', { method: 'PATCH', body: JSON.stringify(data) }),
+
   // ---- admin ----
   triggerBackup: () => request('/api/admin/backup', { method: 'POST' }),
   listBackups: () => request('/api/admin/backups'),

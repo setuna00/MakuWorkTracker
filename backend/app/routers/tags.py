@@ -63,30 +63,38 @@ def list_tags(
     """列出标签。
     - 默认:work_count = 全局有该 tag 的作品数
     - in_collection 指定时:work_count = 该收藏夹内有该 tag 的作品数
+    - 设置里关掉"显示弃坑作品"时,弃坑作品不计入 work_count
     排序:work_count 降序、相同时按名字升序
     """
     from sqlmodel import func
     from ..models import WorkTagLink, WorkCollectionLink
+    from .preferences import get_preference, dropped_work_ids
+
+    hide_dropped = not get_preference(session, "show_dropped")
 
     if in_collection is not None:
         # 子集计数:WorkTagLink JOIN WorkCollectionLink 同一个 work_id,且 collection 命中
-        cnt_join = (
+        cnt_stmt = (
             select(WorkTagLink.tag_id, func.count(WorkTagLink.work_id).label("cnt"))
             .join(WorkCollectionLink, WorkCollectionLink.work_id == WorkTagLink.work_id)
             .where(WorkCollectionLink.collection_id == in_collection)
-            .group_by(WorkTagLink.tag_id)
-            .subquery()
         )
+        if hide_dropped:
+            cnt_stmt = cnt_stmt.where(WorkTagLink.work_id.not_in(dropped_work_ids()))
+        cnt_join = cnt_stmt.group_by(WorkTagLink.tag_id).subquery()
         rows = session.exec(
             select(Tag, func.coalesce(cnt_join.c.cnt, 0).label("cnt"))
             .outerjoin(cnt_join, cnt_join.c.tag_id == Tag.id)
             .order_by(func.coalesce(cnt_join.c.cnt, 0).desc(), Tag.name.asc())
         ).all()
     else:
-        # 全局计数
+        # 全局计数。排除条件放在 ON 里而不是 WHERE,没有作品的标签仍然列出(计数 0)
+        on_clause = WorkTagLink.tag_id == Tag.id
+        if hide_dropped:
+            on_clause = on_clause & WorkTagLink.work_id.not_in(dropped_work_ids())
         rows = session.exec(
             select(Tag, func.count(WorkTagLink.work_id).label("cnt"))
-            .outerjoin(WorkTagLink, WorkTagLink.tag_id == Tag.id)
+            .outerjoin(WorkTagLink, on_clause)
             .group_by(Tag.id)
             .order_by(func.count(WorkTagLink.work_id).desc(), Tag.name.asc())
         ).all()

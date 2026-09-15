@@ -247,6 +247,11 @@ def list_works(
 
     if personal_status is not None:
         stmt = stmt.where(current_w.personal_status == personal_status)
+    else:
+        # 设置里关掉"显示弃坑作品"后,弃坑作品只在按弃坑筛选时出现
+        from .preferences import get_preference, dropped_work_ids
+        if not get_preference(session, "show_dropped"):
+            stmt = stmt.where(Work.id.not_in(dropped_work_ids()))
 
     # 排序
     if sort == "rating":

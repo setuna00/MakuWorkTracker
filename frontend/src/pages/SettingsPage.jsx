@@ -8,7 +8,7 @@ import { Button, ConfirmDialog, Modal } from '../components/Modal'
 import { TagChip } from '../components/TagChip'
 import { MonthlyReportModal } from '../components/MonthlyReportModal'
 
-const SETTINGS_SECTIONS = ['tags', 'collections', 'reports', 'appearance', 'data', 'about']
+const SETTINGS_SECTIONS = ['tags', 'collections', 'reports', 'appearance', 'data', 'other', 'about']
 
 function sectionFromParams(searchParams) {
   const requested = searchParams.get('tab') || searchParams.get('section')
@@ -45,6 +45,7 @@ export default function SettingsPage() {
         <SectionTab active={section === 'reports'} onClick={() => switchSection('reports')}>{t('settings.tab.reports')}</SectionTab>
         <SectionTab active={section === 'appearance'} onClick={() => switchSection('appearance')}>{t('settings.tab.appearance')}</SectionTab>
         <SectionTab active={section === 'data'} onClick={() => switchSection('data')}>{t('settings.tab.data')}</SectionTab>
+        <SectionTab active={section === 'other'} onClick={() => switchSection('other')}>{t('settings.tab.other')}</SectionTab>
         <SectionTab active={section === 'about'} onClick={() => switchSection('about')}>{t('settings.tab.about')}</SectionTab>
       </div>
 
@@ -53,6 +54,7 @@ export default function SettingsPage() {
       {section === 'reports' && <ReportsSection />}
       {section === 'appearance' && <AppearanceSection />}
       {section === 'data' && <DataSection />}
+      {section === 'other' && <OtherSection />}
       {section === 'about' && <AboutSection />}
     </div>
   )
@@ -780,6 +782,64 @@ function DataSection() {
         </div>
       </div>
     </div>
+  )
+}
+
+// =============== 其他 ===============
+//
+// 偏好存在后端数据库里，手机和电脑共用同一份设置。
+
+function OtherSection() {
+  const t = useT()
+  const queryClient = useQueryClient()
+  const { data: prefs } = useQuery({ queryKey: ['preferences'], queryFn: api.getPreferences })
+  const update = useMutation({
+    mutationFn: api.updatePreferences,
+    onSuccess: (next) => {
+      queryClient.setQueryData(['preferences'], next)
+      // 作品列表、类型计数、标签和收藏夹的作品数都受这个开关影响
+      for (const key of ['works', 'typeCounts', 'tags', 'collections']) {
+        queryClient.invalidateQueries({ queryKey: [key] })
+      }
+    },
+  })
+  const showDropped = prefs?.show_dropped ?? true
+
+  return (
+    <div className="space-y-5">
+      <div className="card p-5 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-sm font-medium mb-1 text-ink-700">{t('settings.other.showDropped')}</div>
+          <div className="text-xs text-ink-500 leading-relaxed">{t('settings.other.showDroppedDesc')}</div>
+        </div>
+        <Switch
+          checked={showDropped}
+          disabled={!prefs || update.isPending}
+          onChange={(value) => update.mutate({ show_dropped: value })}
+          label={t('settings.other.showDropped')}
+        />
+      </div>
+    </div>
+  )
+}
+
+function Switch({ checked, disabled, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+        checked ? 'bg-brand-600' : 'bg-paper-300'
+      }`}
+    >
+      <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+        checked ? 'translate-x-[22px]' : 'translate-x-0.5'
+      }`} />
+    </button>
   )
 }
 

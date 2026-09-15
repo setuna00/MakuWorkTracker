@@ -192,3 +192,67 @@ def test_starting_new_round_defaults_to_watching_and_reaches_home_query(client, 
     assert home_query.status_code == 200
     assert [item["title"] for item in home_query.json()] == ["Start Again"]
     assert home_query.json()[0]["main_watching"]["round_number"] == 2
+
+
+def test_hidden_dropped_works_only_appear_under_dropped_filter(client, seeded):
+    """关闭“显示弃坑作品”后，弃坑作品只在按弃坑筛选时出现，类型计数也不算它。"""
+    assert client.get("/api/preferences").json() == {"show_dropped": True}
+
+    def titles(**params):
+        resp = client.get("/api/works", params={**params, "page": 1, "page_size": 60})
+        assert resp.status_code == 200, resp.text
+        return sorted(item["title"] for item in resp.json()["items"])
+
+    assert "Epsilon" in titles()
+
+    resp = client.patch("/api/preferences", json={"show_dropped": False})
+    assert resp.status_code == 200
+    assert resp.json() == {"show_dropped": False}
+
+    assert titles() == ["Alpha", "Beta", "Delta", "Gamma", "Zeta"]
+    assert titles(sort="rating") == ["Alpha", "Beta", "Delta", "Gamma", "Zeta"]
+    assert titles(type="movie") == []
+    assert titles(q="Epsilon") == []
+    assert titles(personal_status="dropped") == ["Epsilon"]
+    assert titles(personal_status="dropped", type="movie") == ["Epsilon"]
+    counts = client.get("/api/stats/type-counts").json()
+    assert counts["counts"]["movie"] == 0
+    assert counts["total"] == 5
+
+    client.patch("/api/preferences", json={"show_dropped": True})
+    assert "Epsilon" in titles()
+
+
+def test_hidden_dropped_works_are_not_counted_in_tag_and_collection_counts(client, session, seeded):
+    """关闭“显示弃坑作品”后，标签和收藏夹的作品数也不算弃坑作品。"""
+    from sqlmodel import select
+    from app.models import Collection, WorkCollectionLink
+
+    dropped = session.exec(select(Work).where(Work.title == "Epsilon")).one()
+    alpha = session.exec(select(Work).where(Work.title == "Alpha")).one()
+    session.add(WorkTagLink(work_id=dropped.id, tag_id=seeded["tag_id"]))
+    session.add(Tag(name="空标签"))
+    playlist = Collection(name="片单")
+    session.add(playlist)
+    session.flush()
+    session.add(WorkCollectionLink(work_id=dropped.id, collection_id=playlist.id))
+    session.add(WorkCollectionLink(work_id=alpha.id, collection_id=playlist.id))
+    session.commit()
+
+    def tag_counts(**params):
+        return {t["name"]: t["work_count"] for t in client.get("/api/tags", params=params).json()}
+
+    def playlist_count():
+        return {c["name"]: c["work_count"] for c in client.get("/api/collections").json()}["片单"]
+
+    assert tag_counts()["剧情"] == 5
+    assert tag_counts(in_collection=playlist.id)["剧情"] == 2
+    assert playlist_count() == 2
+
+    client.patch("/api/preferences", json={"show_dropped": False})
+
+    counts = tag_counts()
+    assert counts["剧情"] == 4
+    assert counts["空标签"] == 0  # 没有作品的标签仍然列出
+    assert tag_counts(in_collection=playlist.id)["剧情"] == 1
+    assert playlist_count() == 1

@@ -14,10 +14,15 @@ router = APIRouter(prefix="/api/collections", tags=["collections"])
 def list_collections(session: Session = Depends(get_session)):
     cols = session.exec(select(Collection).order_by(Collection.sort_order, Collection.name)).all()
     # 一次查所有 collection 的作品数,避免 N+1
-    counts = dict(session.exec(
+    count_stmt = (
         select(WorkCollectionLink.collection_id, func.count(WorkCollectionLink.work_id))
         .group_by(WorkCollectionLink.collection_id)
-    ).all())
+    )
+    # 设置里关掉"显示弃坑作品"时,弃坑作品不计入收藏夹作品数
+    from .preferences import get_preference, dropped_work_ids
+    if not get_preference(session, "show_dropped"):
+        count_stmt = count_stmt.where(WorkCollectionLink.work_id.not_in(dropped_work_ids()))
+    counts = dict(session.exec(count_stmt).all())
     out = []
     for c in cols:
         cr = CollectionRead.model_validate(c)

@@ -145,3 +145,11 @@ class MonthlyReport(SQLModel, table=True):
     month: int = Field(index=True)              # 1-12
     data: str                                    # JSON 字符串
     generated_at: datetime = Field(default_factory=utcnow)
+
+
+# ---------- AppSetting ----------
+
+class AppSetting(SQLModel, table=True):
+    """应用偏好(键值对)。value 存 JSON 字符串,默认值见 routers/preferences.py。"""
+    key: str = Field(primary_key=True)
+    value: str
