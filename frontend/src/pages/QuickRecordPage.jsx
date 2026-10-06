@@ -6,6 +6,7 @@ import { api, coverUrl, localToday } from '../lib/api'
 import { useT, translateUnit, useLocaleStore } from '../lib/i18n'
 import { Button } from '../components/Modal'
 import { TypeBadge } from '../components/TypeBadge'
+import { MarkFinishedCheckbox } from '../components/QuickRecordModal'
 
 export default function QuickRecordPage() {
   const t = useT()
@@ -122,6 +123,7 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
   const [end, setEnd] = useState(currentMax + 1)
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
+  const [markFinished, setMarkFinished] = useState(false)
 
   const handleWatchingChange = (id) => {
     setWatchingId(Number(id))
@@ -137,6 +139,7 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
       range_start: hasRange ? Number(start) : null,
       range_end: hasRange ? Number(end) : null,
       note: note.trim() || null,
+      mark_finished: canMarkFinished && markFinished,
     }),
     onSuccess: () => onDone(),
     onError: (e) => setError(e.message || t('quickRecord.recordFailed')),
@@ -154,6 +157,10 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
     }
     submit.mutate()
   }
+
+  // 连载作品记到目前已知的最新一集时，可以顺手勾"已看完"：作品改为完结，状态改为看完
+  const canMarkFinished = hasRange && work.release_status === 'ongoing'
+    && Number(end) >= 1 && Number(end) >= (work.total_units || 0)
 
   const progressLabel = currentMax > 0
     ? t('quickRecord.progressCurrent', { unit: unitLabel, n: currentMax })
@@ -210,6 +217,10 @@ function RecordForm({ work, typesMeta, unitLabel, onBack, onDone }) {
                      onChange={(e) => setEnd(e.target.value)} className="!w-28" />
             </div>
           </Field>
+        )}
+
+        {canMarkFinished && (
+          <MarkFinishedCheckbox checked={markFinished} onChange={setMarkFinished} unit={unitLabel} />
         )}
 
         <Field label={t('quickRecord.note')}>

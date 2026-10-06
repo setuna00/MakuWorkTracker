@@ -123,6 +123,8 @@ class ProgressEntryCreate(BaseModel):
     range_end: Optional[int] = None
     note: Optional[str] = None
     is_backfill: bool = False
+    # 连载作品：这一集就是最后一集，记录后作品改为完结（进而自动标为看完）
+    mark_finished: bool = False
 
 
 class ProgressEntryUpdate(BaseModel):

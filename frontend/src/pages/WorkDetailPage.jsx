@@ -847,6 +847,12 @@ function ProgressDisplay({ watching, unitLabel, totalUnits, isMovie }) {
   )
 }
 
+// 编辑时把输入框撑到正好放下全部内容，不用手动拖或在框里滚动；失焦后恢复默认高度
+function fitToContent(el) {
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`
+}
+
 function ReviewEditor({ watching }) {
   const t = useT()
   const queryClient = useQueryClient()
@@ -869,8 +875,9 @@ function ReviewEditor({ watching }) {
         )}
       </div>
       <textarea value={val}
-                onChange={(e) => { setVal(e.target.value); setDirty(true) }}
-                onBlur={() => dirty && update.mutate()}
+                onFocus={(e) => fitToContent(e.target)}
+                onChange={(e) => { setVal(e.target.value); setDirty(true); fitToContent(e.target) }}
+                onBlur={(e) => { e.target.style.height = ''; if (dirty) update.mutate() }}
                 rows={3}
                 placeholder={t('workDetail.reviewPlaceholder')} />
     </div>

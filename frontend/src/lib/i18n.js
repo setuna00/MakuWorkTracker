@@ -164,6 +164,8 @@ const zh = {
   'quickRecord.notePlaceholder': '本次的想法...',
   'quickRecord.submit': '记录',
   'quickRecord.invalidRange': '请输入有效的进度区间',
+  'quickRecord.markFinished': '已看完：这是最后一{unit}',
+  'quickRecord.markFinishedHint': '作品会改为完结，你的状态改为看完',
   'quickRecord.recordFailed': '记录失败',
   'quickRecord.modal.title': '记录进度 · {title}',
   'quickRecord.modal.toRound': '正在记录到「{label}」',
@@ -221,6 +223,11 @@ const zh = {
   'newWork.errors.totalRequiredFinished': '完结作品必须填写总{unit}数',
   'newWork.errors.createFailed': '创建失败',
   'newWork.submit': '创建作品',
+  'newWork.duplicate.sameType': '作品库里已经有同名作品，确认不是重复导入：',
+  'newWork.duplicate.otherTypes': '同名的其他类型作品：',
+  'newWork.duplicate.confirmTitle': '已有同名作品',
+  'newWork.duplicate.confirmMessage': '作品库里已经有「{title}」，确定还要再新建一部吗？',
+  'newWork.duplicate.confirmCreate': '仍然新建',
   'newWork.cropper.title': '裁剪封面',
 
   // Cover dropzone
@@ -630,6 +637,8 @@ const en = {
   'quickRecord.notePlaceholder': 'Your thoughts…',
   'quickRecord.submit': 'Record',
   'quickRecord.invalidRange': 'Please enter a valid range',
+  'quickRecord.markFinished': 'Finished: this is the final {unit}',
+  'quickRecord.markFinishedHint': 'Marks the work as finished and your status as done',
   'quickRecord.recordFailed': 'Failed to record',
   'quickRecord.modal.title': 'Record · {title}',
   'quickRecord.modal.toRound': 'Recording to "{label}"',
@@ -687,6 +696,11 @@ const en = {
   'newWork.errors.totalRequiredFinished': 'Finished works require a total {unit} count',
   'newWork.errors.createFailed': 'Failed to create',
   'newWork.submit': 'Create',
+  'newWork.duplicate.sameType': 'A work with the same title is already in your library. Check that this is not a duplicate:',
+  'newWork.duplicate.otherTypes': 'Same title, other types:',
+  'newWork.duplicate.confirmTitle': 'Work already exists',
+  'newWork.duplicate.confirmMessage': '"{title}" is already in your library. Create another one anyway?',
+  'newWork.duplicate.confirmCreate': 'Create anyway',
   'newWork.cropper.title': 'Crop cover',
 
   // Cover dropzone

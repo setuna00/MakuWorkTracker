@@ -1,11 +1,13 @@
 """进度记录路由 - 包含核心业务规则。"""
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select, func
 from ..db import get_session
 from ..models import Work, Watching, ProgressEntry
-from ..models.enums import ReleaseStatus, PersonalStatus, TYPES_WITH_RANGE_PROGRESS
+from ..models.enums import (
+    ReleaseStatus, PersonalStatus, TYPES_WITH_RANGE_PROGRESS, TYPES_WITHOUT_RANGE_PROGRESS,
+)
 from ..schemas import ProgressEntryCreate, ProgressEntryUpdate, ProgressEntryRead
 
 router = APIRouter(tags=["progress"])
@@ -50,53 +52,76 @@ def _maybe_extend_total(session: Session, work: Work, range_end):
         session.add(work)
 
 
-def sync_watching_completion(session: Session, watching: Watching, work: Work):
-    """根据当前作品发布状态 + 进度，自动同步 watching 的 finished_at / personal_status。
-
-    规则：
-    - 完结作品（finished + total_units 已设）：
-        cur >= total → done + finished_at = today
-          （从 watching / on_hold / want 任一状态都会被推到 done）
-        cur <  total → 如果当前是 done 则退回 watching + 清空 finished_at
-          （应对 total 被改大；on_hold/dropped 不动，因为是用户主动选择）
-    - 连载中作品（ongoing）：
-        如果当前是 done（之前 finished 时被推上去的） → 退回 watching + 清空 finished_at
-        其他状态不动（on_hold/dropped 都是用户主动选择，不自动改）
-    - 没有 total_units / 无法判断：不动
-    """
-    max_range_end = session.exec(
+def _max_progress(session: Session, watching: Watching) -> Optional[int]:
+    return session.exec(
         select(func.max(ProgressEntry.range_end)).where(ProgressEntry.watching_id == watching.id)
     ).one()
 
-    changed = False
 
-    if work.release_status == ReleaseStatus.finished and work.total_units is not None:
-        reached_end = max_range_end is not None and max_range_end >= work.total_units
-        if reached_end:
-            if watching.finished_at is None:
-                watching.finished_at = datetime.now(timezone.utc).date()
-                changed = True
-            if watching.personal_status != PersonalStatus.done:
-                watching.personal_status = PersonalStatus.done
-                changed = True
-        else:
-            # 只有 done 状态才会被退回；on_hold/dropped 是用户主动选择，不动
-            if watching.personal_status == PersonalStatus.done:
-                watching.personal_status = PersonalStatus.watching
-                changed = True
-            if watching.finished_at is not None:
-                watching.finished_at = None
-                changed = True
+def _mark_work_finished(session: Session, work: Work, watching: Watching):
+    """连载作品记录时勾了"已看完"：刚记的这一集就是最后一集，作品改为完结。"""
+    work.release_status = ReleaseStatus.finished
+    work.total_units = _max_progress(session, watching)
+    work.updated_at = datetime.now(timezone.utc)
+    session.add(work)
+
+
+def is_watching_complete(session: Session, watching: Watching, work: Work) -> Optional[bool]:
+    """按当前记录判断这个周目是否已看完。None 表示无法判断，不做自动切换。
+
+    - 电影：有任何一条记录就算看过
+    - 区间进度类型：作品已完结、总数已知，且最大进度到达总数。
+      连载中永远不算看完——要在记录时勾选"已看完"把作品改成完结
+    - 其他类型（如"其他"）：无法判断
+    """
+    if work.type in TYPES_WITHOUT_RANGE_PROGRESS:
+        count = session.exec(
+            select(func.count(ProgressEntry.id)).where(ProgressEntry.watching_id == watching.id)
+        ).one()
+        return count > 0
+    if work.type not in TYPES_WITH_RANGE_PROGRESS:
+        return None
+    if work.release_status != ReleaseStatus.finished or work.total_units is None:
+        return False
+    max_end = _max_progress(session, watching)
+    return max_end is not None and max_end >= work.total_units
+
+
+def _completion_date(session: Session, watching: Watching, work: Work):
+    """看完的日期取"让它看完的那条记录"的日期，而不是操作当天——
+    事后补记旧月份的记录时，月报能把完成算进正确的月份。"""
+    stmt = select(func.min(ProgressEntry.date)).where(ProgressEntry.watching_id == watching.id)
+    if work.type in TYPES_WITH_RANGE_PROGRESS:
+        stmt = stmt.where(ProgressEntry.range_end >= work.total_units)
+    return session.exec(stmt).one() or datetime.now(timezone.utc).date()
+
+
+def sync_watching_completion(session: Session, watching: Watching, work: Work,
+                             was_complete: Optional[bool]):
+    """记录或作品信息变化后，自动切换"看完"状态。
+
+    只在"是否看完"发生翻转时才动（边沿触发），用户手动选的状态不会被覆盖：
+    - 没看完 → 看完：推到 done，finished_at 取让它看完的那条记录的日期
+    - 看完 → 没看完（删了记录 / 总数改大 / 改回连载）：如果是 done 则退回 watching
+    - 没翻转（比如只改了备注、日期）：不动
+    调用方要在修改之前用 is_watching_complete 取得 was_complete。
+    """
+    now_complete = is_watching_complete(session, watching, work)
+    if was_complete is None or now_complete is None or was_complete == now_complete:
+        return
+
+    if now_complete:
+        watching.personal_status = PersonalStatus.done
+        if watching.finished_at is None:
+            watching.finished_at = _completion_date(session, watching, work)
+    elif watching.personal_status == PersonalStatus.done:
+        watching.personal_status = PersonalStatus.watching
+        watching.finished_at = None
     else:
-        # 连载中：只把 done 退回 watching；on_hold/dropped 不动
-        if watching.personal_status == PersonalStatus.done:
-            watching.personal_status = PersonalStatus.watching
-            watching.finished_at = None
-            changed = True
+        return
 
-    if changed:
-        watching.updated_at = datetime.now(timezone.utc)
-        session.add(watching)
+    watching.updated_at = datetime.now(timezone.utc)
+    session.add(watching)
 
 
 @router.get("/api/watchings/{watching_id}/entries", response_model=List[ProgressEntryRead])
@@ -122,6 +147,7 @@ def create_entry(
         raise HTTPException(404, "Work not found")
 
     _validate_range(work, data.range_start, data.range_end)
+    was_complete = is_watching_complete(session, watching, work)
 
     # 计算 consumed_count
     if data.range_start is not None and data.range_end is not None:
@@ -143,6 +169,12 @@ def create_entry(
     # 业务规则：连载中自动扩 total_units
     _maybe_extend_total(session, work, data.range_end)
 
+    # 连载作品勾了"已看完"：作品改为完结，总数定为这一集
+    if (data.mark_finished
+            and work.type in TYPES_WITH_RANGE_PROGRESS
+            and work.release_status == ReleaseStatus.ongoing):
+        _mark_work_finished(session, work, watching)
+
     # 自动设 watching.started_at（首条记录）
     if watching.started_at is None:
         watching.started_at = data.date
@@ -156,7 +188,7 @@ def create_entry(
         watching.updated_at = datetime.now(timezone.utc)
         session.add(watching)
 
-    sync_watching_completion(session, watching, work)
+    sync_watching_completion(session, watching, work, was_complete)
 
     session.commit()
     session.refresh(entry)
@@ -183,6 +215,7 @@ def update_entry(
 
     watching = session.get(Watching, entry.watching_id)
     work = session.get(Work, watching.work_id)
+    was_complete = is_watching_complete(session, watching, work)
 
     update_dict = data.model_dump(exclude_unset=True)
 
@@ -203,7 +236,7 @@ def update_entry(
 
     # 仍可能引发自动扩 total_units
     _maybe_extend_total(session, work, entry.range_end)
-    sync_watching_completion(session, watching, work)
+    sync_watching_completion(session, watching, work, was_complete)
 
     session.add(entry)
     session.commit()
@@ -218,8 +251,9 @@ def delete_entry(entry_id: int, session: Session = Depends(get_session)):
         raise HTTPException(404, "Entry not found")
     watching = session.get(Watching, entry.watching_id)
     work = session.get(Work, watching.work_id) if watching else None
+    was_complete = is_watching_complete(session, watching, work) if work else None
     session.delete(entry)
     if watching and work:
-        sync_watching_completion(session, watching, work)
+        sync_watching_completion(session, watching, work, was_complete)
     session.commit()
     return {"ok": True}

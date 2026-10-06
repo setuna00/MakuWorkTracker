@@ -1,5 +1,6 @@
 """作品 CRUD 路由。"""
 import json
+import unicodedata
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from sqlmodel import Session, select, func
@@ -12,7 +13,7 @@ from ..schemas import (
 )
 from ..utils.images import save_cover, delete_cover
 from ..utils.pinyin import _to_pinyin_forms, _is_ascii_query, _pinyin_match
-from .progress import sync_watching_completion
+from .progress import sync_watching_completion, is_watching_complete
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/works", tags=["works"])
@@ -384,6 +385,42 @@ def list_works(
     return items
 
 
+def _normalize_title(s: Optional[str]) -> str:
+    """查重用的标题归一化：全角转半角、忽略大小写，去掉空格和标点。"""
+    if not s:
+        return ""
+    s = unicodedata.normalize("NFKC", s).lower()
+    return "".join(ch for ch in s if ch.isalnum())
+
+
+@router.get("/duplicates")
+def find_duplicates(
+    title: Optional[str] = None,
+    original_title: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    """新建/导入作品时查重：标题或原名与已有作品的标题或原名相同（归一化后比较）。
+
+    不受"显示弃坑作品"设置影响，弃坑的作品也要提示。
+    必须注册在 /{work_id} 之前，否则 "duplicates" 会被当成作品 id。
+    """
+    needles = {n for n in (_normalize_title(title), _normalize_title(original_title)) if n}
+    if not needles:
+        return []
+    rows = session.exec(
+        select(Work.id, Work.title, Work.original_title, Work.type,
+               Work.release_year, Work.cover_thumb_path)
+    ).all()
+    return [
+        {
+            "id": wid, "title": wtitle, "original_title": worig, "type": wtype.value,
+            "release_year": year, "cover_thumb_path": thumb,
+        }
+        for wid, wtitle, worig, wtype, year, thumb in rows
+        if needles & ({_normalize_title(wtitle), _normalize_title(worig)} - {""})
+    ]
+
+
 @router.get("/{work_id}", response_model=WorkDetailRead)
 def get_work(work_id: int, session: Session = Depends(get_session)):
     work = session.get(Work, work_id)
@@ -466,6 +503,7 @@ def create_work(
             r_start = r_end = None
             consumed = 1
 
+        was_complete = is_watching_complete(session, main_watching, work)
         backfill_entry = ProgressEntry(
             watching_id=main_watching.id,
             date=_date_cls.today(),
@@ -506,7 +544,7 @@ def create_work(
             work.updated_at = datetime.now(timezone.utc)
             session.add(work)
 
-        sync_watching_completion(session, main_watching, work)
+        sync_watching_completion(session, main_watching, work, was_complete)
 
     session.commit()
     session.refresh(work)
@@ -533,6 +571,9 @@ def update_work(
     tag_ids = update_dict.pop("tag_ids", None)
     collection_ids = update_dict.pop("collection_ids", None)
 
+    # 修改前先记下各周目是否已看完，改完后只在"看完与否"翻转时才自动切状态
+    was_complete = {w.id: is_watching_complete(session, w, work) for w in work.watchings}
+
     for k, v in update_dict.items():
         setattr(work, k, v)
 
@@ -557,7 +598,7 @@ def update_work(
 
     # 状态切换时（ongoing↔finished、total_units 变化）同步所有周目的完成状态
     for w in work.watchings:
-        sync_watching_completion(session, w, work)
+        sync_watching_completion(session, w, work, was_complete[w.id])
 
     session.commit()
     session.refresh(work)

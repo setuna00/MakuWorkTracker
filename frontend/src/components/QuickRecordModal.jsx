@@ -22,6 +22,7 @@ export function QuickRecordModal({ work, watching, onClose, typesMeta }) {
   const [note, setNote] = useState('')
   const [date, setDate] = useState(localToday())
   const [error, setError] = useState('')
+  const [markFinished, setMarkFinished] = useState(false)
 
   useEffect(() => {
     setStart(currentMax + 1)
@@ -34,6 +35,7 @@ export function QuickRecordModal({ work, watching, onClose, typesMeta }) {
       range_start: hasRange ? Number(start) : null,
       range_end: hasRange ? Number(end) : null,
       note: note.trim() || null,
+      mark_finished: canMarkFinished && markFinished,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries()
@@ -54,6 +56,10 @@ export function QuickRecordModal({ work, watching, onClose, typesMeta }) {
     }
     submit.mutate()
   }
+
+  // 连载作品记到目前已知的最新一集时，可以顺手勾"已看完"：作品改为完结，状态改为看完
+  const canMarkFinished = hasRange && work.release_status === 'ongoing'
+    && Number(end) >= 1 && Number(end) >= (work.total_units || 0)
 
   const progressLabel = currentMax > 0
     ? t('quickRecord.progressCurrent', { unit: unitLabel, n: currentMax })
@@ -87,6 +93,10 @@ export function QuickRecordModal({ work, watching, onClose, typesMeta }) {
           </Field>
         )}
 
+        {canMarkFinished && (
+          <MarkFinishedCheckbox checked={markFinished} onChange={setMarkFinished} unit={unitLabel} />
+        )}
+
         <Field label={t('quickRecord.note')}>
           <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)}
                     placeholder={t('quickRecord.notePlaceholder')} />
@@ -106,6 +116,21 @@ export function QuickRecordModal({ work, watching, onClose, typesMeta }) {
         </div>
       </form>
     </Modal>
+  )
+}
+
+/** 连载作品记录时的"已看完"勾选框，记录弹窗和快速记录页共用 */
+export function MarkFinishedCheckbox({ checked, onChange, unit }) {
+  const t = useT()
+  return (
+    <label className="flex items-start gap-2.5 px-3 py-2.5 rounded-md border border-paper-200 bg-paper-50 cursor-pointer select-none">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
+             className="mt-0.5 cursor-pointer" />
+      <span className="text-sm text-ink-700">
+        {t('quickRecord.markFinished', { unit })}
+        <span className="block text-xs text-ink-500 mt-0.5">{t('quickRecord.markFinishedHint')}</span>
+      </span>
+    </label>
   )
 }
 

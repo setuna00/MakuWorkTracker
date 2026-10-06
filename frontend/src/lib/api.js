@@ -44,6 +44,12 @@ export const api = {
     return request(`/api/works${q ? '?' + q : ''}`)
   },
   getWork: (id) => request(`/api/works/${id}`),
+  findDuplicateWorks: (title, originalTitle) => {
+    const sp = new URLSearchParams()
+    if (title) sp.append('title', title)
+    if (originalTitle) sp.append('original_title', originalTitle)
+    return request(`/api/works/duplicates?${sp}`)
+  },
   createWork: (payload, coverFile) => {
     const fd = new FormData()
     fd.append('payload', JSON.stringify(payload))

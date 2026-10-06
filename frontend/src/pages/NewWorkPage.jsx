@@ -1,13 +1,14 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Check, Image as ImageIcon, Upload, X } from 'lucide-react'
+import { AlertTriangle, Check, Image as ImageIcon, Upload, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useT, translateType, translateUnit, translateStatus, translateRelease, translateCreatorLabel } from '../lib/i18n'
-import { Button, Modal } from '../components/Modal'
+import { Button, Modal, ConfirmDialog } from '../components/Modal'
 import { CoverCropper } from '../components/CoverCropper'
 import { TagPicker } from '../components/TagPicker'
 import { SelectableTagChip } from '../components/TagChip'
+import { TypeBadge } from '../components/TypeBadge'
 
 export default function NewWorkPage() {
   const t = useT()
@@ -50,6 +51,22 @@ export default function NewWorkPage() {
   })
   const { data: collections = [] } = useQuery({ queryKey: ['collections'], queryFn: api.listCollections })
 
+  // 查重：标题停止输入 400ms 后查一次（Bangumi 导入器一次性填好标题也会触发）
+  const [dupQuery, setDupQuery] = useState({ title: '', original: '' })
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setDupQuery({ title: title.trim(), original: originalTitle.trim() }), 400)
+    return () => clearTimeout(timer)
+  }, [title, originalTitle])
+  const { data: duplicates = [] } = useQuery({
+    queryKey: ['work-duplicates', dupQuery],
+    queryFn: () => api.findDuplicateWorks(dupQuery.title, dupQuery.original),
+    enabled: !!(dupQuery.title || dupQuery.original),
+  })
+  // 同类型才算重复；同名的漫画和动画是正常情况，只做提示
+  const sameTypeDuplicates = duplicates.filter(d => d.type === type)
+  const otherTypeDuplicates = duplicates.filter(d => d.type !== type)
+
   const typeMeta = typesMeta.types.find(ty => ty.value === type)
   const isMovie = type === 'movie'
   const needsTotalUnits = !isMovie && releaseStatus === 'finished' && typeMeta?.has_range_progress
@@ -86,7 +103,7 @@ export default function NewWorkPage() {
     setCoverPreview(null)
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = ({ skipDuplicateCheck = false } = {}) => {
     setError('')
     setBackfillError('')
 
@@ -96,6 +113,11 @@ export default function NewWorkPage() {
     }
     if (!isMovie && releaseStatus === 'finished' && typeMeta?.has_range_progress && !totalUnits) {
       setError(t('newWork.errors.totalRequiredFinished', { unit: effectiveUnitDisplay }))
+      return
+    }
+
+    if (!skipDuplicateCheck && sameTypeDuplicates.length > 0) {
+      setConfirmDuplicate(true)
       return
     }
 
@@ -214,6 +236,8 @@ export default function NewWorkPage() {
                            value={releaseYear} onChange={(e) => setReleaseYear(e.target.value)}
                            placeholder="2024" />
               </Field>
+
+              <DuplicateNotice same={sameTypeDuplicates} others={otherTypeDuplicates} />
 
               {typeMeta?.creator_fields?.length === 2 && (
                 <>
@@ -423,12 +447,21 @@ export default function NewWorkPage() {
 
           <div className="px-7 py-4 bg-paper-50 border-t border-paper-200 flex items-center justify-between">
             <Button variant="ghost" onClick={() => setStep(2)}>{t('common.prev')}</Button>
-            <Button variant="primary" onClick={handleSubmit} disabled={create.isPending}>
+            <Button variant="primary" onClick={() => handleSubmit()} disabled={create.isPending}>
               {create.isPending ? t('common.creating') : t('newWork.submit')}
             </Button>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDuplicate}
+        onClose={() => setConfirmDuplicate(false)}
+        onConfirm={() => { setConfirmDuplicate(false); handleSubmit({ skipDuplicateCheck: true }) }}
+        title={t('newWork.duplicate.confirmTitle')}
+        message={t('newWork.duplicate.confirmMessage', { title: sameTypeDuplicates[0]?.title || '' })}
+        confirmText={t('newWork.duplicate.confirmCreate')}
+      />
 
       {pendingFile && (
         <Modal open={true} onClose={() => setPendingFile(null)} title={t('newWork.cropper.title')}
@@ -445,6 +478,43 @@ export default function NewWorkPage() {
 }
 
 /* =============== 辅助组件 =============== */
+
+function DuplicateNotice({ same, others }) {
+  const t = useT()
+  if (!same.length && !others.length) return null
+  return (
+    <div className="col-span-1 md:col-span-2 space-y-2">
+      {same.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-amber-800">
+            <AlertTriangle size={15} className="flex-shrink-0" /> {t('newWork.duplicate.sameType')}
+          </div>
+          <ul className="mt-2 space-y-1.5">
+            {same.map(d => <li key={d.id}><DuplicateLink item={d} /></li>)}
+          </ul>
+        </div>
+      )}
+      {others.length > 0 && (
+        <div className="text-xs text-ink-500 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span>{t('newWork.duplicate.otherTypes')}</span>
+          {others.map(d => <DuplicateLink key={d.id} item={d} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 新标签页打开，正在填的表单不会丢
+function DuplicateLink({ item }) {
+  return (
+    <a href={`/works/${item.id}`} target="_blank" rel="noreferrer"
+       className="inline-flex items-center gap-1.5 text-sm text-ink-800 hover:text-brand-700 group">
+      <TypeBadge type={item.type} size="sm" />
+      <span className="group-hover:underline underline-offset-2">{item.title}</span>
+      {item.release_year && <span className="text-xs text-ink-400">{item.release_year}</span>}
+    </a>
+  )
+}
 
 function Section({ title, desc, children }) {
   return (
