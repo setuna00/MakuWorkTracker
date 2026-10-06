@@ -1,7 +1,7 @@
 name: CI & Release
 
 # push 到 main / PR：只跑测试
-# push v* 版本 tag（如 v1.7.0）：测试通过后构建 amd64 + arm64 镜像并发布到 GHCR
+# push v* 版本 tag（如 v1.7.0）：测试通过后构建 amd64 + arm64 镜像并发布到 GHCR，再建 GitHub Release
 on:
   push:
     branches: [main]
@@ -86,3 +86,36 @@ jobs:
             APP_VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # 镜像发布成功后在 GitHub Releases 页面建对应条目（光推 tag 不会出现在 Releases 上）
+  # 说明取 tag 所在提交的提交信息；已经手动建过的不会覆盖
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Create GitHub release
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, skipping"
+            exit 0
+          fi
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          {
+            git log -1 --format=%b | grep -v '^Co-Authored-By:'
+            echo
+            echo '### Docker'
+            echo '```'
+            echo "docker pull $image:${TAG#v}"
+            echo '```'
+          } > notes.md
+          prerelease=""
+          [[ "$TAG" == *-* ]] && prerelease="--prerelease"
+          gh release create "$TAG" --verify-tag $prerelease \
+            --title "$TAG - $(git log -1 --format=%s)" --notes-file notes.md
