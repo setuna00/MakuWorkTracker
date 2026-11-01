@@ -66,6 +66,12 @@ export const api = {
   },
   deleteWork: (id) => request(`/api/works/${id}`, { method: 'DELETE' }),
 
+  // ---- lookup (Bangumi) ----
+  searchBangumi: (q) => request(`/api/lookup/bangumi/search?q=${encodeURIComponent(q)}`),
+  getBangumiSubject: (id) => request(`/api/lookup/bangumi/subjects/${id}`),
+  getBangumiCover: (id) => fetch(`/api/lookup/bangumi/subjects/${id}/cover`)
+    .then(r => r.ok ? r.blob() : r.text().then(t => { throw new Error(`${r.status}: ${t}`) })),
+
   // ---- watchings ----
   createWatching: (workId, data) =>
     request(`/api/works/${workId}/watchings`, { method: 'POST', body: JSON.stringify(data) }),
@@ -172,6 +178,18 @@ export const api = {
   shouldPromptReport: () => request('/api/reports/monthly/should-prompt'),
   deleteReport: (year, month) =>
     request(`/api/reports/monthly?year=${year}&month=${month}`, { method: 'DELETE' }),
+}
+
+// 从 request() 抛出的 "404: {"detail": ...}" 里取出后端给的说明
+export function errorDetail(err) {
+  const msg = String(err?.message || '')
+  const m = msg.match(/^\d+:\s*(.+)$/s)
+  if (!m) return msg
+  try {
+    return JSON.parse(m[1]).detail || m[1]
+  } catch {
+    return m[1]
+  }
 }
 
 // 把后端返回的 cover_path（如 "covers/abc.jpg"）转成可访问 URL

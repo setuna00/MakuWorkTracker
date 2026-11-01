@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { AlertTriangle, Check, Image as ImageIcon, Upload, X } from 'lucide-react'
-import { api } from '../lib/api'
+import { AlertTriangle, Check, Image as ImageIcon, Loader2, Search, Upload, X } from 'lucide-react'
+import { api, errorDetail } from '../lib/api'
 import { useT, translateType, translateUnit, translateStatus, translateRelease, translateCreatorLabel } from '../lib/i18n'
 import { Button, Modal, ConfirmDialog } from '../components/Modal'
 import { CoverCropper } from '../components/CoverCropper'
@@ -87,7 +87,10 @@ export default function NewWorkPage() {
   })
 
   const handleCoverSelect = (file) => {
-    if (file) setPendingFile(file)
+    if (file) {
+      setPendingFile(file)
+      setCoverImportFailed(false)
+    }
   }
 
   const handleCropConfirm = (croppedFile) => {
@@ -102,6 +105,57 @@ export default function NewWorkPage() {
     setCoverFile(null)
     setCoverPreview(null)
   }
+
+  // Bangumi 导入：条目和封面同时请求，都回来后一次性填好表单、进入第 2 步并打开裁剪框
+  const [importingId, setImportingId] = useState(null)
+  const [importError, setImportError] = useState('')
+  const [coverImportFailed, setCoverImportFailed] = useState(false)
+
+  const importFromBangumi = async (subjectId) => {
+    setImportingId(subjectId)
+    setImportError('')
+    const [draftResult, coverResult] = await Promise.allSettled([
+      api.getBangumiSubject(subjectId),
+      api.getBangumiCover(subjectId),
+    ])
+    setImportingId(null)
+    if (draftResult.status === 'rejected') {
+      setImportError(errorDetail(draftResult.reason))
+      return
+    }
+
+    const draft = draftResult.value
+    setType(draft.type)
+    setUnitLabel(draft.unit_label || '')
+    setTitle(draft.title)
+    setOriginalTitle(draft.original_title || '')
+    setReleaseYear(draft.release_year ? String(draft.release_year) : '')
+    setDescription(draft.description || '')
+    setReleaseStatus(draft.release_status)
+    setTotalUnits(draft.total_units ? String(draft.total_units) : '')
+    setCreators(draft.creators || {})
+    setTitleError('')
+    setTotalUnitsError('')
+    removeCover()
+    if (coverResult.status === 'fulfilled') {
+      const blob = coverResult.value
+      const ext = { 'image/png': 'png', 'image/webp': 'webp' }[blob.type] || 'jpg'
+      setPendingFile(new File([blob], `bangumi-${subjectId}.${ext}`, { type: blob.type || 'image/jpeg' }))
+    }
+    setCoverImportFailed(draft.has_cover && coverResult.status === 'rejected')
+    setStep(2)
+  }
+
+  // /works/new?bangumi=<条目ID>：从 Bangumi 页面（油猴脚本或书签）跳过来时直接导入
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkHandled = useRef(false)
+  useEffect(() => {
+    const subjectId = searchParams.get('bangumi')
+    if (deepLinkHandled.current || !/^\d+$/.test(subjectId || '')) return
+    deepLinkHandled.current = true
+    setSearchParams(params => { params.delete('bangumi'); return params }, { replace: true })
+    importFromBangumi(Number(subjectId))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = ({ skipDuplicateCheck = false } = {}) => {
     setError('')
@@ -195,6 +249,8 @@ export default function NewWorkPage() {
       {/* Step 1: 类型 */}
       {step === 1 && (
         <div className="bg-white rounded-2xl border border-paper-200 shadow-card p-7">
+          <BangumiSearch importingId={importingId} error={importError} onPick={importFromBangumi} />
+          <div className="border-t border-paper-200 -mx-7 my-7" />
           <SectionTitle>{t('newWork.step1.title')}</SectionTitle>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-5">
             {typesMeta.types.map(ty => (
@@ -266,6 +322,11 @@ export default function NewWorkPage() {
           </Section>
 
           <Section title={t('newWork.step2.cover')} desc={t('newWork.step2.coverDesc')}>
+            {coverImportFailed && !coverFile && (
+              <div className="mb-3 flex items-center gap-1.5 text-sm text-amber-800">
+                <AlertTriangle size={15} className="flex-shrink-0" /> {t('newWork.bangumi.coverFailed')}
+              </div>
+            )}
             <CoverDropzone file={coverFile} preview={coverPreview}
                            onSelect={handleCoverSelect} onRemove={removeCover} />
           </Section>
@@ -478,6 +539,91 @@ export default function NewWorkPage() {
 }
 
 /* =============== 辅助组件 =============== */
+
+// 回车或点按钮才搜索，不边打边搜，免得每个字都去请求 Bangumi
+function BangumiSearch({ importingId, error, onPick }) {
+  const t = useT()
+  const [input, setInput] = useState('')
+  const [keyword, setKeyword] = useState('')
+  const { data: results, isFetching, error: searchError } = useQuery({
+    queryKey: ['bangumi-search', keyword],
+    queryFn: () => api.searchBangumi(keyword),
+    enabled: !!keyword,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+
+  const busy = importingId !== null
+  const importingFromLink = busy && !results?.some(r => r.id === importingId)
+
+  return (
+    <div>
+      <form className="flex gap-2"
+            onSubmit={(e) => { e.preventDefault(); setKeyword(input.trim()) }}>
+        <div className="relative flex-1 min-w-0">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
+          <TextInput type="search" value={input} onChange={(e) => setInput(e.target.value)}
+                     placeholder={t('newWork.bangumi.placeholder')} className="!pl-10" />
+        </div>
+        <Button variant="primary" type="submit" className="flex-shrink-0 px-4"
+                disabled={!input.trim() || isFetching}>
+          {isFetching && <Loader2 size={14} className="animate-spin" />}
+          {t('newWork.bangumi.search')}
+        </Button>
+      </form>
+
+      {searchError && !isFetching && (
+        <div className="mt-3 text-sm text-red-600">
+          {t('newWork.bangumi.failed', { msg: errorDetail(searchError) })}
+        </div>
+      )}
+      {results?.length === 0 && !isFetching && (
+        <div className="mt-3 text-sm text-ink-500">{t('newWork.bangumi.empty')}</div>
+      )}
+      {results?.length > 0 && (
+        <ul className="mt-3 border border-paper-200 rounded-xl divide-y divide-paper-200 overflow-y-auto max-h-[420px]">
+          {results.map(r => (
+            <li key={r.id}>
+              <button type="button" disabled={busy} onClick={() => onPick(r.id)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-brand-50 disabled:cursor-wait disabled:hover:bg-transparent">
+                {r.thumb_url ? (
+                  <img src={r.thumb_url} alt="" loading="lazy" referrerPolicy="no-referrer"
+                       className="w-10 h-[53px] object-cover rounded border border-paper-200 bg-paper-100 flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-[53px] rounded border border-paper-200 bg-paper-100 flex-shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-ink-900 truncate">{r.title}</div>
+                  {r.original_title && <div className="text-xs text-ink-500 truncate">{r.original_title}</div>}
+                  <div className="mt-1 flex items-center gap-2 text-xs text-ink-500">
+                    <TypeBadge type={r.type} size="sm" />
+                    {r.release_year && <span>{r.release_year}</span>}
+                    {/* 漫画/小说的平台就是"漫画""小说"，和类型标签重复 */}
+                    {r.platform && !['manga', 'novel'].includes(r.type) && (
+                      <span className="truncate">{r.platform}</span>
+                    )}
+                  </div>
+                </div>
+                {importingId === r.id && <Loader2 size={16} className="animate-spin text-brand-600 flex-shrink-0" />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {importingFromLink && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-ink-500">
+          <Loader2 size={15} className="animate-spin" /> {t('newWork.bangumi.importing')}
+        </div>
+      )}
+      {error && (
+        <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+          {t('newWork.bangumi.failed', { msg: error })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function DuplicateNotice({ same, others }) {
   const t = useT()

@@ -12,7 +12,8 @@ import { useT } from '../lib/i18n'
  * - 舞台比裁剪框大，框外的图片压暗显示，能看到框外还有什么
  * - 视图状态与显示尺寸无关：zoom（1 = 刚好填满裁剪框）+ 裁剪框中心对准的原图坐标 (cx, cy)。
  *   弹窗大小变化、输出到 canvas 都套同一个公式，不会错位
- * - 只要求"裁剪框中心落在图片上"，允许拖出留白、缩小到完整显示；留白部分输出为白底
+ * - 图片不能拖出裁剪框：100% 及以上时框内始终被图片盖满；缩小到"完整显示"时整张图留在框内，
+ *   空出的部分输出为白底
  *
  * @param file        File 对象（用户选的图）
  * @param onCancel    取消回调
@@ -97,15 +98,20 @@ export function CoverCropper({ file, onCancel, onConfirm }) {
 
   const cover = img ? coverScale(img, frameW, frameH) : 1
   const scale = cover * view.zoom
-  // 完整显示整张图时的 zoom（≤ 1）；允许再缩小一半，给想留边的情况
+  // 完整显示整张图时的 zoom（≤ 1），也是能缩到的最小值
   const fitZoom = img ? Math.min(frameW / img.w, frameH / img.h) / cover : 1
-  const minZoom = fitZoom / 2
+  const minZoom = fitZoom
 
-  const clampView = (v) => ({
-    zoom: clamp(v.zoom, minZoom, MAX_ZOOM),
-    cx: clamp(v.cx, 0, img.w),
-    cy: clamp(v.cy, 0, img.h),
-  })
+  // 每个方向单独限位：图片比框大，框不能超出图片；图片比框小，图片不能超出框
+  const clampView = (v) => {
+    const zoom = clamp(v.zoom, minZoom, MAX_ZOOM)
+    const s = cover * zoom
+    const axis = (c, size, frame) => {
+      const half = frame / 2 / s   // 半个框对应的原图像素
+      return clamp(c, Math.min(half, size - half), Math.max(half, size - half))
+    }
+    return { zoom, cx: axis(v.cx, img.w, frameW), cy: axis(v.cy, img.h, frameH) }
+  }
 
   // 以舞台内某点为锚缩放（锚点下的画面不动）；不给锚点就以裁剪框中心为锚
   const zoomAt = (zoom, anchor) => {
@@ -135,7 +141,7 @@ export function CoverCropper({ file, onCancel, onConfirm }) {
   }
 
   // ---- 拖动 / 双指缩放（Pointer Events 统一处理鼠标和触摸） ----
-  // 手指数变化时重新拍快照，之后每次移动都相对快照计算，不会累积误差
+  // 手指数变化时重新拍快照，双指时每次移动都相对快照计算，不会累积误差
   const beginGesture = () => {
     const pts = [...pointers.current.values()]
     gesture.current = pts.length
@@ -159,11 +165,14 @@ export function CoverCropper({ file, onCancel, onConfirm }) {
     const pts = [...pointers.current.values()]
     const s0 = cover * g.view.zoom
     if (pts.length === 1) {
-      setView(clampView({
+      const next = clampView({
         ...g.view,
         cx: g.view.cx - (pts[0].x - g.pts[0].x) / s0,
         cy: g.view.cy - (pts[0].y - g.pts[0].y) / s0,
-      }))
+      })
+      setView(next)
+      // 单指拖动逐帧换快照：拖到边被挡住后，往回一拖图片立刻跟着走，不用先把多拖的距离拖回来
+      gesture.current = { ...g, pts, view: next }
       return
     }
     // 双指：两指距离决定缩放，两指中点下的画面跟着手指走

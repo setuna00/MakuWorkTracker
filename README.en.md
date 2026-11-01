@@ -15,6 +15,7 @@ It is designed around a simple idea: **local-first, private by default, and full
 - **Full control over your own database**: data is stored in local SQLite and local cover files, making it easy to back up, export, inspect, and migrate.
 - **Custom tag system**: create your own tags, tag groups, aliases, and use them to organize your library.
 - **Works library**: manage anime, movies, TV series, manga, novels, and custom “other” works.
+- **Import from Bangumi**: search Bangumi when adding a work to fill in the title, year, summary, creators, episode count, and cover. The machine running Maku needs internet access.
 - **Multiple rounds / rewatches**: each work can have multiple watching rounds with independent progress, rating, and review.
 - **Range-based progress records**: record progress like “episodes 5–7”; same-day entries are merged visually.
 - **Timeline**: browse your progress records chronologically and look back at what you watched or read over time.

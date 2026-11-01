@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import init_db
-from .routers import works, watchings, progress, tags, tag_groups, collections, timeline, admin, meta, reports, preferences
+from .routers import works, watchings, progress, tags, tag_groups, collections, timeline, admin, meta, reports, preferences, lookup
 from .utils.backup import start_scheduler, stop_scheduler
 
 
@@ -50,6 +50,7 @@ app.include_router(timeline.router)
 app.include_router(admin.router)
 app.include_router(reports.router)
 app.include_router(preferences.router)
+app.include_router(lookup.router)
 
 
 @app.get("/api/health")
